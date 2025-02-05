@@ -73,7 +73,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
     if (exactMatch || fuzzyMatch) {
       await sendWhatsAppImage(
         sender,
-        "https://cancerzimbabwe.org/images/logo.png",
+        "/images.png",
         ""
       );
       await sendWhatsAppMessage(

@@ -80,33 +80,53 @@ app.post("/whatsapp/webhook", async (req, res) => {
         sender,
         `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\nHow can we assist you today? Reply with a number:\n\n${generateMenu()}`
       );
-    } else if (MENU_OPTIONS[text]) {
-      const selectedOption = MENU_OPTIONS[text];
-      if (selectedOption.submenu) {
+      return res.sendStatus(200);
+    }
+    const mainMenuSelection = MENU_OPTIONS[text];
+    if (mainMenuSelection) {
+      if (mainMenuSelection.submenu) {
         await sendWhatsAppMessage(
           sender,
           `You selected: *${
-            selectedOption.name
+            mainMenuSelection.name
           }*\n\nPlease choose a topic:\n\n${generateSubMenu(
-            selectedOption.submenu
+            mainMenuSelection.submenu
           )}`
         );
       } else {
         await sendWhatsAppMessage(
           sender,
-          `You selected: *${selectedOption.name}*\n\nHow can we assist you further?`
+          `You selected: *${mainMenuSelection.name}*\n\nHow can we assist you further?`
         );
       }
+      return res.sendStatus(200);
+    }
+    let foundSubmenu = null;
+    let submenuName = "";
+
+    for (const key in MENU_OPTIONS) {
+      if (MENU_OPTIONS[key].submenu && MENU_OPTIONS[key].submenu[text]) {
+        foundSubmenu = MENU_OPTIONS[key].submenu[text];
+        submenuName = foundSubmenu;
+        break;
+      }
+    }
+    if (foundSubmenu) {
+      await sendWhatsAppMessage(
+        sender,
+        `You selected: *${submenuName}*\n\nWhat do you want to know about *${submenuName}*?`
+      );
+      return res.sendStatus(200);
+    }
+
+    const aiResponse = await generateDialogflowResponse(text, sender);
+    if (aiResponse.includes("sorry")) {
+      await sendWhatsAppMessage(
+        sender,
+        `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
+      );
     } else {
-      const aiResponse = await generateDialogflowResponse(text, sender);
-      if (aiResponse.includes("sorry")) {
-        await sendWhatsAppMessage(
-          sender,
-          `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
-        );
-      } else {
-        await sendWhatsAppMessage(sender, aiResponse);
-      }
+      await sendWhatsAppMessage(sender, aiResponse);
     }
   } catch (error) {
     console.error("Error handling message:", error.message);

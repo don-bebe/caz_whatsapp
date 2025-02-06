@@ -308,9 +308,13 @@ function generateMenu() {
 }
 
 function generateSubMenu(submenu) {
-  return Object.entries(submenu)
-    .map(([key, value]) => `${key}. ${value}`)
-    .join("\n");
+  let menuString = "";
+  let counter = "a"; // Start with 'a'
+  for (const key in submenu) {
+    menuString += `${counter}. ${submenu[key]}\n`;
+    counter = String.fromCharCode(counter.charCodeAt(0) + 1); // Increment letter
+  }
+  return menuString;
 }
 
 app.listen(PORT, () => {

@@ -25,14 +25,15 @@ const MENU_OPTIONS = {
   1: {
     name: "Learn about Cancer",
     submenu: {
-      1: "Breast Cancer",
-      2: "HIV & AIDS Cancer",
-      3: "Cancer in Children",
+      a: "Breast Cancer",
+      b: "HIV & AIDS Cancer",
+      c: "Cancer in Children",
+      d: "Cervical Cancer",
     },
   },
   2: {
     name: "CAZ Services",
-    submenu: { 1: "Breast Care", 2: "Emotional Support", 3: "Support Groups" },
+    submenu: { a: "Breast Care", b: "Emotional Support", c: "Support Groups" },
   },
   3: { name: "Care Services", submenu: null },
   4: { name: "About Us", submenu: null },
@@ -88,7 +89,8 @@ app.post("/whatsapp/webhook", async (req, res) => {
     }
 
     if (currentContext && currentContext.submenu) {
-      const selectedSubOption = currentContext.submenu[text];
+      const selectedSubOptionKey = text;
+      const selectedSubOption = currentContext.submenu[selectedSubOptionKey];
       if (selectedSubOption) {
         await sendWhatsAppMessage(
           sender,
@@ -108,6 +110,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
     if (MENU_OPTIONS[text]) {
       const selectedOption = MENU_OPTIONS[text];
       if (selectedOption.submenu) {
+        userContext[sender] = selectedOption;
         await sendWhatsAppMessage(
           sender,
           `You selected: *${
@@ -125,7 +128,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     } else {
       const aiResponse = await generateDialogflowResponse(text, sender);
-      if (aiResponse.includes("sorry")) {
+      if (aiResponse.includes("Sorry")) {
         await sendWhatsAppMessage(
           sender,
           `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`

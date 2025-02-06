@@ -100,7 +100,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       } else {
         await sendWhatsAppMessage(
           sender,
-          "Invalid submenu option. Please choose from the list below:\n\n" +
+          "Invalid submenu option.\nPlease choose from the list below:\n\n" +
             generateSubMenu(currentContext.submenu)
         );
       }
@@ -123,9 +123,12 @@ app.post("/whatsapp/webhook", async (req, res) => {
         userContext[sender] = selectedOption;
         await sendWhatsAppMessage(
           sender,
-          `You selected: *${selectedOption.name}*\n\nHow can we assist you further?`
+          `You selected: *${selectedOption.name}*\n\nYou can now type your question about ${selectedOption.name}.`
         );
       }
+    } else if (currentContext && !currentContext.submenu) {
+      const aiResponse = await generateDialogflowResponse(text, sender);
+      await sendWhatsAppMessage(sender, aiResponse);
     } else {
       const aiResponse = await generateDialogflowResponse(text, sender);
       if (aiResponse.includes("Sorry")) {

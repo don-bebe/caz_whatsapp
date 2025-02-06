@@ -21,8 +21,6 @@ const welcomeMessages = JSON.parse(
 
 const sessionClient = new dialogflow.SessionsClient({ credentials });
 
-const userSessions = {};
-
 const MENU_OPTIONS = {
   1: {
     name: "Learn about Cancer",
@@ -39,6 +37,8 @@ const MENU_OPTIONS = {
   3: { name: "Care Services", submenu: null },
   4: { name: "About Us", submenu: null },
 };
+
+const userContext = {};
 
 app.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -63,9 +63,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
     const sender = message.from;
     const text = message.text?.body.trim().toLowerCase();
 
-    if (!userSessions[sender]) {
-      userSessions[sender] = { lastMenu: null };
-    }
+    const currentContext = userContext[sender];
 
     const exactMatch = welcomeMessages.some((msg) =>
       new RegExp(`\\b${msg}\\b`, "i").test(text)
@@ -79,36 +77,36 @@ app.post("/whatsapp/webhook", async (req, res) => {
     if (exactMatch || fuzzyMatch) {
       await sendWhatsAppImage(
         sender,
-        "https://drive.google.com/file/d/1fBmQhx4UH7V36v5kbhNJbM7yuMc-ExNs/view?usp=drive_link",
+        "https://cancerzimbabwe.org/images/logo.png",
         ""
       );
       await sendWhatsAppMessage(
         sender,
-        `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\n` +
-          `How can we assist you today? Reply with a number:\n\n${generateMenu()}`
+        `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\nHow can we assist you today? Reply with a number:\n\n${generateMenu()}`
       );
-
-      userSessions[sender].lastMenu = null;
+      return res.sendStatus(200);
     }
 
-    if (userSessions[sender].lastMenu === null && isNaN(text)) {
-      const aiResponse = await generateDialogflowResponse(text, sender);
-      await sendWhatsAppMessage(sender, aiResponse);
-    }
-
-    let selectedOption;
-    selectedOption = MENU_OPTIONS[text];
-    if (!selectedOption) {
-      await sendWhatsAppMessage(
-        sender,
-        "Invalid option. Please select a valid number:\n\n" + generateMenu()
-      );
+    if (currentContext && currentContext.submenu) {
+      const selectedSubOption = currentContext.submenu[text];
+      if (selectedSubOption) {
+        await sendWhatsAppMessage(
+          sender,
+          `What do you want to know about *${selectedSubOption}*?`
+        );
+        delete userContext[sender];
+      } else {
+        await sendWhatsAppMessage(
+          sender,
+          "Invalid submenu option. Please choose from the list below:\n\n" +
+            generateSubMenu(currentContext.submenu)
+        );
+      }
+      return res.sendStatus(200);
     }
 
     if (MENU_OPTIONS[text]) {
-      userSessions[sender].lastMenu = text;
-      userSessions[sender].lastSubmenu = null;
-      userSessions[sender].isSelectingSubmenu = true;
+      const selectedOption = MENU_OPTIONS[text];
       if (selectedOption.submenu) {
         await sendWhatsAppMessage(
           sender,
@@ -119,99 +117,28 @@ app.post("/whatsapp/webhook", async (req, res) => {
           )}`
         );
       } else {
-        const aiResponse = await generateDialogflowResponse(
-          selectedOption.name,
-          sender
-        );
-        await sendWhatsAppMessage(sender, aiResponse);
+        userContext[sender] = selectedOption;
         await sendWhatsAppMessage(
           sender,
-          `Would you like to know more about *${selectedOption.name}*? (Yes/No)`
-        );
-        userSessions[sender].expectingFollowUp = true;
-      }
-      return res.sendStatus(200);
-    }
-
-    if (
-      userSessions[sender].expectingFollowUp &&
-      (text === "yes" ||
-        text === "Yes" ||
-        text === "YES" ||
-        text === "Y" ||
-        text === "y")
-    ) {
-      const lastTopic = MENU_OPTIONS[userSessions[sender].lastMenu]?.name;
-      if (lastTopic && userSessions[sender].lastResponse) {
-        const aiResponse = await generateDialogflowResponse(
-          lastTopic + " advanced",
-          sender
-        );
-        await sendWhatsAppMessage(sender, aiResponse);
-        userSessions[sender].lastResponse = aiResponse;
-      }
-      return res.sendStatus(200);
-    }
-
-    if (
-      userSessions[sender].expectingFollowUp &&
-      (text === "no" ||
-        text === "No" ||
-        text === "NO" ||
-        text === "n" ||
-        text === "N")
-    ) {
-      await sendWhatsAppMessage(
-        sender,
-        `Alright! Here’s the main menu again:\n\n${generateMenu()}`
-      );
-      userSessions[sender].expectingFollowUp = false;
-      return res.sendStatus(200);
-    }
-
-    if (userSessions[sender].isSelectingSubmenu) {
-      const lastMenu = userSessions[sender].lastMenu;
-      const selectedSubmenu = MENU_OPTIONS[lastMenu].submenu[text];
-
-      if (selectedSubmenu) {
-        userSessions[sender].isSelectingSubmenu = false;
-        await sendWhatsAppMessage(
-          sender,
-          `You selected: *${selectedSubmenu}*\n\nWhat do you want to know about *${selectedSubmenu}*?`
-        );
-        // const aiResponse = await generateDialogflowResponse(
-        //   selectedSubmenu,
-        //   sender
-        // );
-        // await sendWhatsAppMessage(sender, aiResponse);
-      } else {
-        await sendWhatsAppMessage(
-          sender,
-          "Invalid submenu option. Please select a valid option."
+          `You selected: *${selectedOption.name}*\n\nHow can we assist you further?`
         );
       }
-      return res.sendStatus(200);
-    }
-
-    if (userSessions[sender].lastSubmenu) {
-      const aiResponse = await generateDialogflowResponse(text, sender);
-      await sendWhatsAppMessage(sender, aiResponse);
-      return res.sendStatus(200);
-    }
-
-    const aiResponse = await generateDialogflowResponse(text, sender);
-    if (aiResponse.includes("sorry")) {
-      await sendWhatsAppMessage(
-        sender,
-        `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
-      );
     } else {
-      await sendWhatsAppMessage(sender, aiResponse);
+      const aiResponse = await generateDialogflowResponse(text, sender);
+      if (aiResponse.includes("sorry")) {
+        await sendWhatsAppMessage(
+          sender,
+          `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
+        );
+      } else {
+        await sendWhatsAppMessage(sender, aiResponse);
+      }
     }
   } catch (error) {
-    console.error("Error in webhook handler:", error);
-    res.status(500).send("Internal Server Error");
+    console.error("Error handling message:", error.message);
   }
+
+  res.sendStatus(200);
 });
 
 async function generateDialogflowResponse(userInput, sessionId) {
@@ -285,19 +212,7 @@ async function sendWhatsAppMessage(to, message) {
     });
     console.log("Message sent:", response.data);
   } catch (error) {
-    console.error(
-      "WhatsApp API Error (sendWhatsAppMessage):",
-      error.response?.status,
-      error.response?.data || error.message,
-      "Request:",
-      data
-    );
-    await sendWhatsAppMessage(
-      to,
-      "Sorry, something went wrong. Please try again later. (Error Code: " +
-        error.response?.status || "Unknown"
-    );
-    throw error;
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
 }
 
@@ -309,10 +224,10 @@ function generateMenu() {
 
 function generateSubMenu(submenu) {
   let menuString = "";
-  let counter = "a"; // Start with 'a'
+  let counter = "a";
   for (const key in submenu) {
     menuString += `${counter}. ${submenu[key]}\n`;
-    counter = String.fromCharCode(counter.charCodeAt(0) + 1); // Increment letter
+    counter = String.fromCharCode(counter.charCodeAt(0) + 1);
   }
   return menuString;
 }

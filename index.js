@@ -89,28 +89,26 @@ app.post("/whatsapp/webhook", async (req, res) => {
       );
 
       userSessions[sender].lastMenu = null;
-      return res.sendStatus(200);
     }
 
     if (userSessions[sender].lastMenu === null && isNaN(text)) {
       const aiResponse = await generateDialogflowResponse(text, sender);
       await sendWhatsAppMessage(sender, aiResponse);
-      return res.sendStatus(200);
     }
 
-    const selectedOption = MENU_OPTIONS[text];
+    let selectedOption;
+    selectedOption = MENU_OPTIONS[text];
     if (!selectedOption) {
       await sendWhatsAppMessage(
         sender,
         "Invalid option. Please select a valid number:\n\n" + generateMenu()
       );
-      return res.sendStatus(200);
     }
 
     if (MENU_OPTIONS[text]) {
-      const selectedOption = MENU_OPTIONS[text];
       userSessions[sender].lastMenu = text;
       userSessions[sender].lastSubmenu = null;
+      userSessions[sender].isSelectingSubmenu = true;
       if (selectedOption.submenu) {
         await sendWhatsAppMessage(
           sender,
@@ -135,7 +133,14 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    if (userSessions[sender].expectingFollowUp && text === "yes") {
+    if (
+      userSessions[sender].expectingFollowUp &&
+      (text === "yes" ||
+        text === "Yes" ||
+        text === "YES" ||
+        text === "Y" ||
+        text === "y")
+    ) {
       const lastTopic = MENU_OPTIONS[userSessions[sender].lastMenu]?.name;
       if (lastTopic && userSessions[sender].lastResponse) {
         const aiResponse = await generateDialogflowResponse(
@@ -145,9 +150,17 @@ app.post("/whatsapp/webhook", async (req, res) => {
         await sendWhatsAppMessage(sender, aiResponse);
         userSessions[sender].lastResponse = aiResponse;
       }
+      return res.sendStatus(200);
     }
 
-    if (userSessions[sender].expectingFollowUp && text === "no") {
+    if (
+      userSessions[sender].expectingFollowUp &&
+      (text === "no" ||
+        text === "No" ||
+        text === "NO" ||
+        text === "n" ||
+        text === "N")
+    ) {
       await sendWhatsAppMessage(
         sender,
         `Alright! Here’s the main menu again:\n\n${generateMenu()}`
@@ -156,19 +169,27 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const lastMenu = userSessions[sender].lastMenu;
-
-    if (
-      lastMenu &&
-      MENU_OPTIONS[lastMenu].submenu &&
-      MENU_OPTIONS[lastMenu].submenu[text]
-    ) {
+    if (userSessions[sender].isSelectingSubmenu) {
+      const lastMenu = userSessions[sender].lastMenu;
       const selectedSubmenu = MENU_OPTIONS[lastMenu].submenu[text];
 
-      await sendWhatsAppMessage(
-        sender,
-        `You selected: *${selectedSubmenu}*\n\nWhat do you want to know about *${selectedSubmenu}*?`
-      );
+      if (selectedSubmenu) {
+        userSessions[sender].isSelectingSubmenu = false;
+        await sendWhatsAppMessage(
+          sender,
+          `You selected: *${selectedSubmenu}*\n\nWhat do you want to know about *${selectedSubmenu}*?`
+        );
+        // const aiResponse = await generateDialogflowResponse(
+        //   selectedSubmenu,
+        //   sender
+        // );
+        // await sendWhatsAppMessage(sender, aiResponse);
+      } else {
+        await sendWhatsAppMessage(
+          sender,
+          "Invalid submenu option. Please select a valid option."
+        );
+      }
       return res.sendStatus(200);
     }
 

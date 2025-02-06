@@ -23,6 +23,18 @@ const sessionClient = new dialogflow.SessionsClient({ credentials });
 
 const MENU_OPTIONS = {
   1: {
+    name: "Make an appointment",
+    submenu: { submenu: null },
+  },
+  2: {
+    name: "View appointment",
+    submenu: {
+      a: "Upcoming Appointments",
+      b: "Appointment Details",
+      c: "Cancel/Reschedule Appointment",
+    },
+  },
+  3: {
     name: "Learn about Cancer",
     submenu: {
       a: "Breast Cancer",
@@ -31,12 +43,15 @@ const MENU_OPTIONS = {
       d: "Cervical Cancer",
     },
   },
-  2: {
-    name: "CAZ Services",
-    submenu: { a: "Breast Care", b: "Emotional Support", c: "Support Groups" },
-  },
-  3: { name: "Care Services", submenu: null },
-  4: { name: "About Us", submenu: null },
+  4: { name: "Care Services", submenu: null },
+  5: { name: "About Us", submenu: null },
+};
+
+const SERVICE_OPTIONS = {
+  1: { name: "Consultation" },
+  2: { name: "Screening and diagnostic tests" },
+  3: { name: "Treatment" },
+  4: { name: "Supportive care services" },
 };
 
 const userContext = {};
@@ -87,6 +102,8 @@ app.post("/whatsapp/webhook", async (req, res) => {
       );
       return res.sendStatus(200);
     }
+
+    handleAppointmentBooking(sender, text);
 
     if (currentContext && currentContext.submenu) {
       const selectedSubOptionKey = text;
@@ -146,6 +163,118 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
   res.sendStatus(200);
 });
+
+async function handleAppointmentBooking(sender, text) {
+  const currentContext = userContext[sender];
+  if (text === "1" && !currentContext) {
+    userContext[sender] = { step: "selectService" };
+    return await sendWhatsAppMessage(
+      sender,
+      `🗓️ *Appointment Booking* Please select a service:\n ${generateServiceMenu()} (Reply with the number of your choice)`
+    );
+  }
+
+  if (currentContext?.step === "selectService") {
+    if (SERVICE_OPTIONS[text]) {
+      userContext[sender] = {
+        step: "enterName",
+        service: SERVICE_OPTIONS[text].name,
+      };
+      return await sendWhatsAppMessage(
+        sender,
+        `✅ You have selected *${SERVICE_OPTIONS[text].name}*. \nPlease enter your full name:`
+      );
+    } else {
+      return await sendWhatsAppMessage(
+        sender,
+        `❌ Invalid selection. Please choose a valid service:\n${generateServiceMenu()}`
+      );
+    }
+  }
+
+  if (currentContext?.step === "enterName") {
+    userContext[sender] = {
+      step: "selectGender",
+      service: currentContext.service,
+      name: text,
+    };
+    return await sendWhatsAppMessage(
+      sender,
+      `✅ Name recorded: *${text}*.\nPlease enter your gender (Male/Female):`
+    );
+  }
+
+  if (currentContext?.step === "selectGender") {
+    if (text.toLowerCase() === "male" || text.toLowerCase() === "female") {
+      userContext[sender] = {
+        step: "enterDate",
+        service: currentContext.service,
+        name: currentContext.name,
+        gender: text,
+      };
+      return await sendWhatsAppMessage(
+        sender,
+        `✅ Gender recorded: *${text}*. \nPlease enter the date for your appointment (YYYY-MM-DD):`
+      );
+    } else {
+      return await sendWhatsAppMessage(
+        sender,
+        `❌ Invalid gender. Please enter *Male* or *Female*: `
+      );
+    }
+  }
+
+  if (currentContext?.step === "enterDate") {
+    userContext[sender] = {
+      step: "enterTime",
+      service: currentContext.service,
+      name: currentContext.name,
+      gender: currentContext.gender,
+      date: text,
+    };
+    return await sendWhatsAppMessage(
+      sender,
+      `✅ Date recorded: *${text}*.\nPlease enter the time for your appointment (HH:MM AM/PM):`
+    );
+  }
+
+  if (currentContext?.step === "enterTime") {
+    userContext[sender] = {
+      step: "preview",
+      service: currentContext.service,
+      name: currentContext.name,
+      gender: currentContext.gender,
+      date: currentContext.date,
+      time: text,
+      phone: sender,
+    };
+    return await sendWhatsAppMessage(
+      sender,
+      `📋 *Appointment Summary:*\n👤 Name: *${currentContext.name}*\n⚧ Gender: *${currentContext.gender}*\n📅 Date: *${currentContext.date}*\n⏰ Time: *${text}*\n📞 Phone: *${sender}*\n\n✅ Please confirm by replying with *YES* or cancel with *NO*.`
+    );
+  }
+
+  if (currentContext?.step === "preview") {
+    if (text.toLowerCase() === "yes") {
+      await sendWhatsAppMessage(
+        sender,
+        `🎉 Your appointment has been successfully booked! We will contact you shortly with further details.`
+      );
+      delete userContext[sender];
+    } else if (text.toLowerCase() === "no") {
+      await sendWhatsAppMessage(
+        sender,
+        `❌ Your appointment has been canceled. You can start over if needed.`
+      );
+      delete userContext[sender];
+    } else {
+      await sendWhatsAppMessage(
+        sender,
+        `⚠️ Please reply with *YES* to confirm or *NO* to cancel.`
+      );
+    }
+  }
+}
 
 async function generateDialogflowResponse(userInput, sessionId) {
   try {
@@ -236,6 +365,12 @@ function generateSubMenu(submenu) {
     counter = String.fromCharCode(counter.charCodeAt(0) + 1);
   }
   return menuString;
+}
+
+function generateServiceMenu() {
+  return Object.entries(SERVICE_OPTIONS)
+    .map(([key, option]) => `${key}. ${option.name}`)
+    .join("\n");
 }
 
 app.listen(PORT, () => {

@@ -21,6 +21,8 @@ const welcomeMessages = JSON.parse(
 
 const sessionClient = new dialogflow.SessionsClient({ credentials });
 
+const userSessions = {};
+
 const MENU_OPTIONS = {
   1: {
     name: "Learn about Cancer",
@@ -54,93 +56,142 @@ app.get("/whatsapp/webhook", (req, res) => {
 });
 
 app.post("/whatsapp/webhook", async (req, res) => {
-    try {
-      const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-      if (!message) return res.sendStatus(200);
-  
-      const sender = message.from;
-      const text = message.text?.body.trim().toLowerCase();
-  
-      // Check if it's a welcome message
-      const exactMatch = welcomeMessages.some((msg) =>
-        new RegExp(`\\b${msg}\\b`, "i").test(text)
+  try {
+    const message = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!message) return res.sendStatus(200);
+
+    const sender = message.from;
+    const text = message.text?.body.trim().toLowerCase();
+
+    if (!userSessions[sender]) {
+      userSessions[sender] = { lastMenu: null };
+    }
+
+    const exactMatch = welcomeMessages.some((msg) =>
+      new RegExp(`\\b${msg}\\b`, "i").test(text)
+    );
+    const bestMatch = stringSimilarity.findBestMatch(
+      text,
+      welcomeMessages
+    ).bestMatch;
+    const fuzzyMatch = bestMatch.rating > 0.7;
+
+    if (exactMatch || fuzzyMatch) {
+      await sendWhatsAppImage(
+        sender,
+        "https://drive.google.com/file/d/1fBmQhx4UH7V36v5kbhNJbM7yuMc-ExNs/view?usp=drive_link",
+        ""
       );
-      const bestMatch = stringSimilarity.findBestMatch(
-        text,
-        welcomeMessages
-      ).bestMatch;
-      const fuzzyMatch = bestMatch.rating > 0.7;
-  
-      if (exactMatch || fuzzyMatch) {
-        await sendWhatsAppImage(sender, "https://github.com/don-bebe/caz_whatsapp/images.png", "");
-        await sendWhatsAppMessage(
-          sender,
-          `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\nHow can we assist you today? Reply with a number:\n\n${generateMenu()}`
-        );
-        return res.sendStatus(200);
-      }
-  
-      // Check if the input is a valid main menu selection
-      const mainMenuSelection = MENU_OPTIONS[text];
-      if (mainMenuSelection) {
-        if (mainMenuSelection.submenu) {
-          // Save the submenu context if needed
-          await sendWhatsAppMessage(
-            sender,
-            `You selected: *${mainMenuSelection.name}*\n\nPlease choose a topic:\n\n${generateSubMenu(mainMenuSelection.submenu)}`
-          );
-        } else {
-          await sendWhatsAppMessage(
-            sender,
-            `You selected: *${mainMenuSelection.name}*\n\nHow can we assist you further?`
-          );
-        }
-        return res.sendStatus(200);
-      }
-  
-      // Handle submenu selection by number
-      let submenuName = "";
-      let submenuSelected = false;
-  
-      // Loop through each menu and its submenu to find a match for the submenu number
-      for (const key in MENU_OPTIONS) {
-        const submenu = MENU_OPTIONS[key].submenu;
-        if (submenu) {
-          for (const subKey in submenu) {
-            if (text === subKey) {
-              submenuName = submenu[subKey];
-              submenuSelected = true;
-              break;
-            }
-          }
-        }
-        if (submenuSelected) break;
-      }
-  
-      if (submenuSelected) {
-        await sendWhatsAppMessage(
-          sender,
-          `You selected: *${submenuName}*\n\nWhat do you want to know about *${submenuName}*?`
-        );
-        return res.sendStatus(200);
-      }
-  
-      // If no match, fallback to Dialogflow response
+      await sendWhatsAppMessage(
+        sender,
+        `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\n` +
+          `How can we assist you today? Reply with a number:\n\n${generateMenu()}`
+      );
+
+      userSessions[sender].lastMenu = null;
+      return res.sendStatus(200);
+    }
+
+    if (userSessions[sender].lastMenu === null && isNaN(text)) {
       const aiResponse = await generateDialogflowResponse(text, sender);
-      if (aiResponse.includes("sorry")) {
+      await sendWhatsAppMessage(sender, aiResponse);
+      return res.sendStatus(200);
+    }
+
+    const selectedOption = MENU_OPTIONS[text];
+    if (!selectedOption) {
+      await sendWhatsAppMessage(
+        sender,
+        "Invalid option. Please select a valid number:\n\n" + generateMenu()
+      );
+      return res.sendStatus(200);
+    }
+
+    if (MENU_OPTIONS[text]) {
+      const selectedOption = MENU_OPTIONS[text];
+      userSessions[sender].lastMenu = text;
+      userSessions[sender].lastSubmenu = null;
+      if (selectedOption.submenu) {
         await sendWhatsAppMessage(
           sender,
-          `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
+          `You selected: *${
+            selectedOption.name
+          }*\n\nPlease choose a topic:\n\n${generateSubMenu(
+            selectedOption.submenu
+          )}`
         );
       } else {
+        const aiResponse = await generateDialogflowResponse(
+          selectedOption.name,
+          sender
+        );
         await sendWhatsAppMessage(sender, aiResponse);
+        await sendWhatsAppMessage(
+          sender,
+          `Would you like to know more about *${selectedOption.name}*? (Yes/No)`
+        );
+        userSessions[sender].expectingFollowUp = true;
       }
-    } catch (error) {
-      console.error("Error handling message:", error.message);
+      return res.sendStatus(200);
     }
-  
-    res.sendStatus(200);
-  });  
+
+    if (userSessions[sender].expectingFollowUp && text === "yes") {
+      const lastTopic = MENU_OPTIONS[userSessions[sender].lastMenu]?.name;
+      if (lastTopic && userSessions[sender].lastResponse) {
+        const aiResponse = await generateDialogflowResponse(
+          lastTopic + " advanced",
+          sender
+        );
+        await sendWhatsAppMessage(sender, aiResponse);
+        userSessions[sender].lastResponse = aiResponse;
+      }
+    }
+
+    if (userSessions[sender].expectingFollowUp && text === "no") {
+      await sendWhatsAppMessage(
+        sender,
+        `Alright! Here’s the main menu again:\n\n${generateMenu()}`
+      );
+      userSessions[sender].expectingFollowUp = false;
+      return res.sendStatus(200);
+    }
+
+    const lastMenu = userSessions[sender].lastMenu;
+
+    if (
+      lastMenu &&
+      MENU_OPTIONS[lastMenu].submenu &&
+      MENU_OPTIONS[lastMenu].submenu[text]
+    ) {
+      const selectedSubmenu = MENU_OPTIONS[lastMenu].submenu[text];
+
+      await sendWhatsAppMessage(
+        sender,
+        `You selected: *${selectedSubmenu}*\n\nWhat do you want to know about *${selectedSubmenu}*?`
+      );
+      return res.sendStatus(200);
+    }
+
+    if (userSessions[sender].lastSubmenu) {
+      const aiResponse = await generateDialogflowResponse(text, sender);
+      await sendWhatsAppMessage(sender, aiResponse);
+      return res.sendStatus(200);
+    }
+
+    const aiResponse = await generateDialogflowResponse(text, sender);
+    if (aiResponse.includes("sorry")) {
+      await sendWhatsAppMessage(
+        sender,
+        `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
+      );
+    } else {
+      await sendWhatsAppMessage(sender, aiResponse);
+    }
+  } catch (error) {
+    console.error("Error in webhook handler:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 async function generateDialogflowResponse(userInput, sessionId) {
   try {
@@ -213,7 +264,19 @@ async function sendWhatsAppMessage(to, message) {
     });
     console.log("Message sent:", response.data);
   } catch (error) {
-    console.error("WhatsApp API Error:", error.response?.data || error.message);
+    console.error(
+      "WhatsApp API Error (sendWhatsAppMessage):",
+      error.response?.status,
+      error.response?.data || error.message,
+      "Request:",
+      data
+    );
+    await sendWhatsAppMessage(
+      to,
+      "Sorry, something went wrong. Please try again later. (Error Code: " +
+        error.response?.status || "Unknown"
+    );
+    throw error;
   }
 }
 

@@ -103,7 +103,9 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    handleAppointmentBooking(sender, text);
+    if (handleAppointmentBooking(sender, text)) {
+      return res.sendStatus(200);
+    }
 
     if (currentContext && currentContext.submenu) {
       const selectedSubOptionKey = text;
@@ -166,12 +168,14 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
 async function handleAppointmentBooking(sender, text) {
   const currentContext = userContext[sender];
+
   if (text === "1" && !currentContext) {
     userContext[sender] = { step: "selectService" };
-    return await sendWhatsAppMessage(
+    await sendWhatsAppMessage(
       sender,
-      `🗓️ *Appointment Booking* Please select a service:\n ${generateServiceMenu()} (Reply with the number of your choice)`
+      `🗓️ *Appointment Booking* Please select a service:\n\n ${generateServiceMenu()} \n(Reply with the number of your choice)`
     );
+    return true;
   }
 
   if (currentContext?.step === "selectService") {
@@ -180,15 +184,17 @@ async function handleAppointmentBooking(sender, text) {
         step: "enterName",
         service: SERVICE_OPTIONS[text].name,
       };
-      return await sendWhatsAppMessage(
+      await sendWhatsAppMessage(
         sender,
         `✅ You have selected *${SERVICE_OPTIONS[text].name}*. \nPlease enter your full name:`
       );
+      return true;
     } else {
-      return await sendWhatsAppMessage(
+      await sendWhatsAppMessage(
         sender,
         `❌ Invalid selection. Please choose a valid service:\n${generateServiceMenu()}`
       );
+      return true;
     }
   }
 
@@ -198,10 +204,11 @@ async function handleAppointmentBooking(sender, text) {
       service: currentContext.service,
       name: text,
     };
-    return await sendWhatsAppMessage(
+    await sendWhatsAppMessage(
       sender,
       `✅ Name recorded: *${text}*.\nPlease enter your gender (Male/Female):`
     );
+    return true;
   }
 
   if (currentContext?.step === "selectGender") {
@@ -212,15 +219,17 @@ async function handleAppointmentBooking(sender, text) {
         name: currentContext.name,
         gender: text,
       };
-      return await sendWhatsAppMessage(
+      await sendWhatsAppMessage(
         sender,
         `✅ Gender recorded: *${text}*. \nPlease enter the date for your appointment (YYYY-MM-DD):`
       );
+      return true;
     } else {
-      return await sendWhatsAppMessage(
+      await sendWhatsAppMessage(
         sender,
         `❌ Invalid gender. Please enter *Male* or *Female*: `
       );
+      return true;
     }
   }
 
@@ -232,10 +241,11 @@ async function handleAppointmentBooking(sender, text) {
       gender: currentContext.gender,
       date: text,
     };
-    return await sendWhatsAppMessage(
+    await sendWhatsAppMessage(
       sender,
       `✅ Date recorded: *${text}*.\nPlease enter the time for your appointment (HH:MM AM/PM):`
     );
+    return true;
   }
 
   if (currentContext?.step === "enterTime") {
@@ -248,10 +258,11 @@ async function handleAppointmentBooking(sender, text) {
       time: text,
       phone: sender,
     };
-    return await sendWhatsAppMessage(
+    await sendWhatsAppMessage(
       sender,
       `📋 *Appointment Summary:*\n👤 Name: *${currentContext.name}*\n⚧ Gender: *${currentContext.gender}*\n📅 Date: *${currentContext.date}*\n⏰ Time: *${text}*\n📞 Phone: *${sender}*\n\n✅ Please confirm by replying with *YES* or cancel with *NO*.`
     );
+    return true;
   }
 
   if (currentContext?.step === "preview") {
@@ -273,7 +284,10 @@ async function handleAppointmentBooking(sender, text) {
         `⚠️ Please reply with *YES* to confirm or *NO* to cancel.`
       );
     }
+    return true;
   }
+
+  return false; // No appointment-related action was taken
 }
 
 async function generateDialogflowResponse(userInput, sessionId) {

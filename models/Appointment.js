@@ -38,12 +38,16 @@ const Appointment = db.define(
       allowNull: false,
     },
     bookingDate: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     bookingTime: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        notEmpty: true,
+        is: /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/,
+      },
     },
     status: {
       type: DataTypes.ENUM("pending", "cancelled", "approved"),

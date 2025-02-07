@@ -110,11 +110,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    if (handleAppointmentBooking(sender, text)) {
+    if (await handleAppointmentBooking(sender, text)) {
       return res.sendStatus(200);
     }
 
-    if (handleManageAppointment(sender, text)) {
+    if (await handleManageAppointment(sender, text)) {
       return res.sendStatus(200);
     }
 
@@ -245,6 +245,20 @@ async function handleAppointmentBooking(sender, text) {
   }
 
   if (currentContext?.step === "enterDate") {
+    const selectedDate = new Date(text);
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      await sendWhatsAppMessage(
+        sender,
+        `❌ You cannot select today's date or a past date. Please enter a future date for your appointment (YYYY-MM-DD):`
+      );
+      return true;
+    }
+
     userContext[sender] = {
       step: "enterTime",
       service: currentContext.service,
@@ -252,28 +266,39 @@ async function handleAppointmentBooking(sender, text) {
       gender: currentContext.gender,
       date: text,
     };
+
     await sendWhatsAppMessage(
       sender,
-      `✅ Date recorded: *${text}*.\nPlease enter the time for your appointment (HH:MM AM/PM):`
+      `✅ Date recorded: *${text}*.\nPlease enter the time for your appointment in 24-hour format (HH:MM):`
     );
     return true;
   }
 
   if (currentContext?.step === "enterTime") {
-    userContext[sender] = {
-      step: "preview",
-      service: currentContext.service,
-      name: currentContext.name,
-      gender: currentContext.gender,
-      date: currentContext.date,
-      time: text,
-      phone: sender,
-    };
-    await sendWhatsAppMessage(
-      sender,
-      `📋 *Appointment Summary:*\n👤 Name: *${currentContext.name}*\n⚧ Gender: *${currentContext.gender}*\n📅 Date: *${currentContext.date}*\n⏰ Time: *${text}*\n📞 Phone: *${sender}*\n🈂️ Service: *${currentContext.service}*\n\n✅ Please confirm by replying with *YES* or cancel with *NO*.`
-    );
-    return true;
+    const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+
+    if (timeRegex.test(text)) {
+      userContext[sender] = {
+        step: "preview",
+        service: currentContext.service,
+        name: currentContext.name,
+        gender: currentContext.gender,
+        date: currentContext.date,
+        time: text,
+        phone: sender,
+      };
+      await sendWhatsAppMessage(
+        sender,
+        `✅ Time recorded: *${text}*.\nPlease confirm your appointment details.`
+      );
+      return true;
+    } else {
+      await sendWhatsAppMessage(
+        sender,
+        `❌ Invalid time format. Please enter the time in 24-hour format (HH:MM):`
+      );
+      return true;
+    }
   }
 
   if (currentContext?.step === "preview") {

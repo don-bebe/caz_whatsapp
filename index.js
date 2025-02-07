@@ -114,7 +114,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    if(handleManageAppointment(sender, text)){
+    if (handleManageAppointment(sender, text)) {
       return res.sendStatus(200);
     }
 
@@ -322,7 +322,7 @@ async function handleAppointmentBooking(sender, text) {
             service: currentContext.service,
             bookingDate: currentContext.date,
             bookingTime: currentContext.time,
-            phone: sender,
+            phone: userContext.phone,
           },
           { transaction }
         );
@@ -359,13 +359,12 @@ async function handleAppointmentBooking(sender, text) {
 
 async function handleManageAppointment(sender, text) {
   const currentContext = userContext[sender];
+  
   if (text === "2" && !currentContext) {
     userContext[sender] = { step: "manageAppointments" };
     await sendWhatsAppMessage(
       sender,
-      `You selected: *Manage Appointments*\n\nPlease choose an option:\n\n${generateSubMenu(
-        MENU_OPTIONS[2].submenu
-      )}`
+      `You selected: *Manage Appointments*\n\nPlease choose an option:\n\n${generateSubMenu(MENU_OPTIONS[2].submenu)}`
     );
     return true;
   }
@@ -418,9 +417,7 @@ async function handleManageAppointment(sender, text) {
       if (appointments.length > 0) {
         let message = `📅 *Your Appointments:* \n`;
         appointments.forEach((appointment, index) => {
-          message += `${index + 1}. ${appointment.bookingDate} at ${
-            appointment.bookingTime
-          } - Service: ${appointment.service}\n`;
+          message += `${index + 1}. ${appointment.bookingDate} at ${appointment.bookingTime} - Service: ${appointment.service}\n`;
         });
         message += `\nTo cancel or reschedule, reply with the appointment number:`;
         userContext[sender] = { step: "cancelOrReschedule", appointments };
@@ -433,6 +430,7 @@ async function handleManageAppointment(sender, text) {
       }
       return true;
     } else {
+      // Invalid submenu option
       await sendWhatsAppMessage(
         sender,
         "Invalid selection. Please choose from the list below:\n\n" +

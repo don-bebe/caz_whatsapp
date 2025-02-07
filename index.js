@@ -289,7 +289,7 @@ async function handleAppointmentBooking(sender, text) {
 
     const todayAppointment = await Appointment.findOne({
       where: {
-        sender,
+        phone: sender,
         createdAt: {
           [Op.gte]: today,
         },
@@ -359,12 +359,14 @@ async function handleAppointmentBooking(sender, text) {
 
 async function handleManageAppointment(sender, text) {
   const currentContext = userContext[sender];
-  
+
   if (text === "2" && !currentContext) {
     userContext[sender] = { step: "manageAppointments" };
     await sendWhatsAppMessage(
       sender,
-      `You selected: *Manage Appointments*\n\nPlease choose an option:\n\n${generateSubMenu(MENU_OPTIONS[2].submenu)}`
+      `You selected: *Manage Appointments*\n\nPlease choose an option:\n\n${generateSubMenu(
+        MENU_OPTIONS[2].submenu
+      )}`
     );
     return true;
   }
@@ -417,7 +419,9 @@ async function handleManageAppointment(sender, text) {
       if (appointments.length > 0) {
         let message = `📅 *Your Appointments:* \n`;
         appointments.forEach((appointment, index) => {
-          message += `${index + 1}. ${appointment.bookingDate} at ${appointment.bookingTime} - Service: ${appointment.service}\n`;
+          message += `${index + 1}. ${appointment.bookingDate} at ${
+            appointment.bookingTime
+          } - Service: ${appointment.service}\n`;
         });
         message += `\nTo cancel or reschedule, reply with the appointment number:`;
         userContext[sender] = { step: "cancelOrReschedule", appointments };

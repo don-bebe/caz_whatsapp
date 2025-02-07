@@ -40,6 +40,15 @@ const Appointment = db.define(
     bookingDate: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        notEmpty: true,
+        is: /^\d{4}-\d{2}-\d{2}$/, // Ensures format YYYY-MM-DD
+        isDate(value) {
+          if (isNaN(Date.parse(value))) {
+            throw new Error("Invalid date format. Use YYYY-MM-DD.");
+          }
+        },
+      },
     },
     bookingTime: {
       type: DataTypes.STRING,

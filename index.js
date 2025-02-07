@@ -347,7 +347,7 @@ async function handleAppointmentBooking(sender, text) {
             service: currentContext.service,
             bookingDate: currentContext.date,
             bookingTime: currentContext.time,
-            phone: userContext.phone,
+            phone: currentContext.phone,
           },
           { transaction }
         );

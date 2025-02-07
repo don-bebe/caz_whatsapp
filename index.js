@@ -360,7 +360,7 @@ async function handleAppointmentBooking(sender, text) {
         await transaction.rollback();
         await sendWhatsAppMessage(
           sender,
-          `❌ Failed to save your appointment. Please try again later.`
+          `❌ Failed to save your appointment. Please try again later. + ${error}`
         );
       }
       delete userContext[sender];

@@ -354,20 +354,24 @@ async function handleAppointmentBooking(sender, text) {
         await transaction.commit();
         await sendWhatsAppMessage(
           sender,
-          `✅ Your appointment request has been submitted. Please wait for approval.`
+          `✅ Your appointment request has been submitted for ${
+            currentContext.date
+          } at ${
+            currentContext.time
+          }. Please wait for approval.\nWhat would you like to do next?\n\n${generateMenu()}`
         );
       } catch (error) {
         await transaction.rollback();
         await sendWhatsAppMessage(
           sender,
-          `❌ Failed to save your appointment. Please try again later. + ${error}`
+          `❌ Failed to save your appointment. Please try again later.\nWhat would you like to do next?\n\n${generateMenu()}`
         );
       }
       delete userContext[sender];
     } else if (text.toLowerCase() === "no") {
       await sendWhatsAppMessage(
         sender,
-        `❌ Your appointment has been canceled. You can start over if needed.`
+        `❌ Your appointment booking has been canceled. You can start over if needed.\n\n${generateMenu()}`
       );
       delete userContext[sender];
     } else {

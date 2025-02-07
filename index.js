@@ -289,7 +289,7 @@ async function handleAppointmentBooking(sender, text) {
       };
       await sendWhatsAppMessage(
         sender,
-        `✅ Time recorded: *${text}*.\nPlease confirm your appointment details.`
+        `📋 *Appointment Summary:*\n👤 Name: *${currentContext.name}*\n⚧ Gender: *${currentContext.gender}*\n📅 Date: *${currentContext.date}*\n⏰ Time: *${text}*\n📞 Phone: *${sender}*\n\n✅ Please confirm with *YES* or cancel with *NO*.`
       );
       return true;
     } else {

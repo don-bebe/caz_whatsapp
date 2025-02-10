@@ -98,15 +98,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
     const fuzzyMatch = bestMatch.rating > 0.7;
 
     if (exactMatch || fuzzyMatch) {
-      await sendWhatsAppImage(
-        sender,
-        "https://cancerzimbabwe.org/images/logo.png",
-        ""
-      );
-      await sendWhatsAppMessage(
-        sender,
-        `🌟 *Welcome to the Cancer Association of Zimbabwe Chatbot!* 🌟\n\nHow can we assist you today? Reply with a number:\n\n${generateMenu()}`
-      );
+      await sendWhatsAppList(sender)
       return res.sendStatus(200);
     }
 
@@ -632,6 +624,123 @@ function generateServiceMenu() {
   return Object.entries(SERVICE_OPTIONS)
     .map(([key, option]) => `${key}. ${option.name}`)
     .join("\n");
+}
+
+async function sendWhatsAppList(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      header: {
+        type: "image",
+        image: {
+          link: "https://cancerzimbabwe.org/images/logo.png",
+          caption: "",
+        },
+      },
+      body: {
+        text: "*Welcome to the Cancer Association of Zimbabwe Chatbot*\n\nHow can we assist you today?",
+      },
+      action: {
+        button: "Main Menu",
+        sections: [
+          {
+            title: "Please select an option",
+            rows: [
+              {
+                id: "make-appointment",
+                title: "Make an appointment",
+                description: "Book a consultation or screening appointment",
+              },
+              {
+                id: "manage-appointments",
+                title: "Manage appointments",
+                description: "View, reschedule, or cancel your appointment",
+              },
+              {
+                id: "learn-cancer",
+                title: "Learn about Cancer",
+                description:
+                  "Get information about cancer types, symptoms, and treatments",
+              },
+              {
+                id: "care-services",
+                title: "Care Services",
+                description: "Explore support and care services available",
+              },
+              {
+                id: "exit",
+                title: "Exit",
+                description: "End the conversation",
+              },
+            ],
+          },
+          {
+            title: "Manage Appointments",
+            rows: [
+              {
+                id: "upcoming-appointments",
+                title: "Upcoming appointments",
+                description: "View your upcoming appointments",
+              },
+              {
+                id: "past-appointments",
+                title: "Past appointments",
+                description: "View your past appointments",
+              },
+              {
+                id: "cancel-reschedule",
+                title: "Cancel/Reschedule",
+                description: "Modify your appointment",
+              },
+            ],
+          },
+          {
+            title: "Choose a Service",
+            rows: [
+              {
+                id: "consultation",
+                title: "Consultation",
+                description: "Book a consultation appointment",
+              },
+              {
+                id: "screening-diagnostic",
+                title: "Screening and diagnostic tests",
+                description: "Book a screening or diagnostic test",
+              },
+              {
+                id: "treatment",
+                title: "Treatment",
+                description: "Book a treatment session",
+              },
+              {
+                id: "supportive-care",
+                title: "Supportive care",
+                description: "Book a supportive care service",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Message sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
 }
 
 app.listen(PORT, () => {

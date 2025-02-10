@@ -59,7 +59,7 @@ const Appointment = db.define(
       },
     },
     status: {
-      type: DataTypes.ENUM("pending", "cancelled", "approved"),
+      type: DataTypes.ENUM("pending", "cancelled", "approved", "rescheduled"),
       allowNull: false,
       defaultValue: "pending",
     },

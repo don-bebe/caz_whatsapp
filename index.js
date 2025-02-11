@@ -53,7 +53,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
     const sender = message.from;
 
-    if (message.text) {
+    if (message.text?.body) {
       const text = message.text.body.trim().toLowerCase();
       const exactMatch = welcomeMessages.some((msg) =>
         new RegExp(`\\b${msg}\\b`, "i").test(text)
@@ -108,18 +108,18 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
 
         if (
-          message.text.body &&
+          message.text?.body &&
           userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {
-          const userDate = message.text.body?.trim();
+          const userDate = message.text.body.trim();
           const validation = isValidAppointmentDate(userDate);
 
           if (!validation.valid) {
             await sendWhatsAppMessage(sender, validation.message);
             return res.sendStatus(200);
           }
-          userContext[sender].date = message.text.body;
+          userContext[sender].date = userDate;
           await sendTimeSelection(sender);
           return res.sendStatus(200);
         }
@@ -151,16 +151,15 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     }
 
-    if (message.text && !userContext[sender]?.fullName) {
-      userContext[sender].fullName = message.text.trim();
+    if (message.text?.body && !userContext[sender]?.fullName) {
+      userContext[sender].fullName = message.text.body.trim();
       userContext[sender].phone = sender;
       await sendConfirmationForm(sender);
       return res.sendStatus(200);
     }
 
     if (
-      message.text &&
-      message.text.toLowerCase() === "confirm" &&
+      message.text?.body?.toLowerCase() === "confirm" &&
       userContext[sender]?.fullName
     ) {
       const currentContext = userContext[sender];
@@ -192,9 +191,9 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     }
 
-    if (message.text && userContext[sender]?.mode === "learn_cancer") {
-      const userInput = message.text;
-      const sessionId = sender; // Use sender's number as session ID
+    if (message.text?.body && userContext[sender]?.mode === "learn_cancer") {
+      const userInput = message.text.body;
+      const sessionId = sender;
 
       const dialogflowResponse = await generateDialogflowResponse(
         userInput,

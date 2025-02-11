@@ -75,10 +75,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
       // Handle Make Appointment button
       if (buttonReply === "make_appointment") {
-        await sendWhatsAppMessage(
-          sender,
-          `You selected ${message.interactive.button_reply.title}`
-        );
         await sendServiceOptions(sender);
         return res.sendStatus(200);
       }
@@ -311,7 +307,7 @@ async function sendServiceOptions(to) {
     interactive: {
       type: "list",
       body: {
-        text: "*Choose a service from below:*",
+        text: "*Choose a service:*",
       },
       action: {
         button: "Select Service",
@@ -325,9 +321,14 @@ async function sendServiceOptions(to) {
                 description: "Book a consultation appointment",
               },
               {
-                id: "service_screening_diagnostic",
-                title: "Screening & Diagnostic Tests",
-                description: "Book a screening or diagnostic test",
+                id: "service_screening",
+                title: "Screening",
+                description: "Book a screening test",
+              },
+              {
+                id: "service_diagnostic",
+                title: "Diagnostic",
+                description: "Book a diagnostic test",
               },
               {
                 id: "service_treatment",
@@ -335,15 +336,14 @@ async function sendServiceOptions(to) {
                 description: "Book a treatment session",
               },
               {
-                id: "service_supportive_care",
+                id: "service_supportive",
                 title: "Supportive Care",
                 description: "Book a supportive care service",
               },
               {
-                id: "service_breast_care_mastectomy-clinic",
-                title: "Breast care & Mastectomy Clinic",
-                description:
-                  "Book a breast care & mastectomy clinic appointment",
+                id: "service_breast_care",
+                title: "Breast care",
+                description: "Book a breast care appointment",
               },
             ],
           },

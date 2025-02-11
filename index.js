@@ -43,7 +43,13 @@ function isValidAppointmentDate(dateString) {
 
   const now = moment();
 
-  // Check if the selected date is not today
+  if (date.isBefore(now, "day")) {
+    return {
+      valid: false,
+      message: "Appointments cannot be scheduled for past dates. Please select a future date.",
+    };
+  }
+
   if (date.isSame(now, "day")) {
     return {
       valid: false,
@@ -51,7 +57,6 @@ function isValidAppointmentDate(dateString) {
     };
   }
 
-  // Check if the selected date is not a Sunday
   if (date.day() === 0) {
     return {
       valid: false,

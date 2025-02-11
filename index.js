@@ -162,7 +162,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             sender,
             `⚠️ You already have an appointment that is pending approval. Please wait for confirmation before making another request.`
           );
-          return true;
+          return res.sendStatus(200);
         }
 
         if (todayAppointment) {
@@ -170,7 +170,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             sender,
             `⚠️ You can only apply for one appointment per day. Please try again tomorrow.`
           );
-          return true;
+          return res.sendStatus(200);
         }
 
         const currentContext = userContext[sender];
@@ -192,6 +192,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             sender,
             `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.`
           );
+          return res.sendStatus(200);
         } catch (error) {
           await transaction.rollback();
           console.error("Error creating appointment:", error.message);
@@ -199,6 +200,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             sender,
             "❌ There was an error with your appointment request. Please try again later."
           );
+          return res.sendStatus(500);
         }
       }
 
@@ -208,6 +210,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           "You have cancelled the appointment booking"
         );
         await sendWhatsAppList(sender);
+        return res.sendStatus(200);
       }
 
       if (listReply) {

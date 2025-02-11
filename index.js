@@ -230,7 +230,6 @@ async function sendWhatsAppList(to) {
         type: "image",
         image: {
           link: "https://cancerzimbabwe.org/images/logo.png",
-          caption: "",
         },
       },
       body: {

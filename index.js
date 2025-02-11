@@ -156,6 +156,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           userContext[sender].date = userDate;
           userContext[sender].mode = "time_selection";
           await sendTimeSelection(sender);
+          return res.sendStatus(200);
         }
 
         if (

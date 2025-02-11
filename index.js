@@ -42,7 +42,9 @@ function isValidAppointmentDate(dateString) {
   }
 
   const now = moment();
-  if (date.isBefore(now, "day")) {
+  const minAppointmentDate = now.add(1, "day").startOf('day'); // At least 24 hours later, with time set to the start of the day
+
+  if (date.isBefore(minAppointmentDate, "day")) {
     return {
       valid: false,
       message: "Please select a date at least 24 hours from today.",
@@ -59,6 +61,7 @@ function isValidAppointmentDate(dateString) {
 
   return { valid: true };
 }
+
 
 app.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];

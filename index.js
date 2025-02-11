@@ -146,11 +146,13 @@ app.post("/whatsapp/webhook", async (req, res) => {
         ) {
           const userDate = message.text.body.trim();
           const validation = isValidAppointmentDate(userDate);
+          console.log(userDate);
 
           if (!validation.valid) {
             await sendWhatsAppMessage(sender, validation.message);
             return res.sendStatus(200);
           }
+
           userContext[sender].date = userDate;
           userContext[sender].mode = "time_selection";
           await sendTimeSelection(sender);

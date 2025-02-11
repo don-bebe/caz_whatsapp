@@ -42,25 +42,26 @@ function isValidAppointmentDate(dateString) {
   }
 
   const now = moment();
-  const minAppointmentDate = now.add(1, "day").startOf('day'); // At least 24 hours later, with time set to the start of the day
 
-  if (date.isBefore(minAppointmentDate, "day")) {
+  // Check if the selected date is not today
+  if (date.isSame(now, "day")) {
     return {
       valid: false,
-      message: "Please select a date at least 24 hours from today.",
+      message: "Appointments cannot be scheduled for today. Please select a different day.",
     };
   }
 
+  // Check if the selected date is not a Sunday
   if (date.day() === 0) {
     return {
       valid: false,
-      message:
-        "Appointments cannot be scheduled on Sundays. Please select another day.",
+      message: "Appointments cannot be scheduled on Sundays. Please select another day.",
     };
   }
 
   return { valid: true };
 }
+
 
 
 app.get("/whatsapp/webhook", (req, res) => {

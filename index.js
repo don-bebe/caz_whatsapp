@@ -116,10 +116,9 @@ app.post("/whatsapp/webhook", async (req, res) => {
           const validation = isValidAppointmentDate(userDate);
 
           if (!validation.valid) {
-            await sendInvalidDateMessage(sender, validation.message);
+            await sendWhatsAppMessage(sender, validation.message);
             return res.sendStatus(200);
           }
-
           userContext[sender].date = message.text;
           await sendTimeSelection(sender);
           return res.sendStatus(200);
@@ -677,10 +676,6 @@ async function sendCancelRescheduleOptions(to) {
       "❌ Unable to fetch appointments. Please try again later."
     );
   }
-}
-
-async function sendInvalidDateMessage(to, errorMessage) {
-  await sendWhatsAppMessage(to, `❌ ${errorMessage}`);
 }
 
 function isValidAppointmentDate(dateString) {

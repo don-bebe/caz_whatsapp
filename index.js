@@ -75,18 +75,21 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
       // Handle Make Appointment button
       if (buttonReply === "make_appointment") {
+        userContext[sender] = { mode: "appointment" };
         await sendServiceOptions(sender);
         return res.sendStatus(200);
       }
 
       // Handle Manage Appointments button
       if (buttonReply === "manage_appointments") {
+        userContext[sender] = { mode: "manage_appointments" };
         await sendManageAppointmentsMenu(sender);
         return res.sendStatus(200);
       }
 
       //Handle Learn Cancer button
       if (buttonReply === "learn_cancer") {
+        userContext[sender] = { mode: "learn_cancer" };
         await sendWhatsAppMessage(
           sender,
           "What do you want to know about cancer. Ask any question"
@@ -99,7 +102,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         if (listReply.startsWith("service_")) {
           userContext[sender] = { service: listReply.replace("service_", "") };
 
-          await sendDateSelection(sender);
+          await requestDateInput(sender);
           return res.sendStatus(200);
         }
 
@@ -108,6 +111,14 @@ app.post("/whatsapp/webhook", async (req, res) => {
           userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {
+          const userDate = message.text;
+          const validation = isValidAppointmentDate(userDate);
+
+          if (!validation.valid) {
+            await sendInvalidDateMessage(sender, validation.message);
+            return res.sendStatus(200);
+          }
+
           userContext[sender].date = message.text;
           await sendTimeSelection(sender);
           return res.sendStatus(200);
@@ -121,16 +132,19 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
         // Handle Manage Appointment options
         if (listReply === "upcoming_appointments") {
+          userContext[sender] = { mode: "view_upcoming" };
           await sendUpcomingAppointments(sender);
           return res.sendStatus(200);
         }
 
         if (listReply === "past_appointments") {
+          userContext[sender] = { mode: "view_past" };
           await sendPastAppointments(sender);
           return res.sendStatus(200);
         }
 
         if (listReply === "cancel_reschedule") {
+          userContext[sender] = { mode: "cancel_reschedule" };
           await sendCancelRescheduleOptions(sender);
           return res.sendStatus(200);
         }
@@ -176,6 +190,19 @@ app.post("/whatsapp/webhook", async (req, res) => {
           "❌ There was an error with your appointment request. Please try again later."
         );
       }
+    }
+
+    if (message.text && userContext[sender]?.mode === "learn_cancer") {
+      const userInput = message.text;
+      const sessionId = sender; // Use sender's number as session ID
+
+      const dialogflowResponse = await generateDialogflowResponse(
+        userInput,
+        sessionId
+      );
+
+      await sendWhatsAppMessage(sender, dialogflowResponse);
+      return res.sendStatus(200);
     }
   } catch (error) {
     console.error("Error handling message:", error.message);
@@ -365,19 +392,16 @@ async function sendServiceOptions(to) {
   }
 }
 
-async function sendDateSelection(to) {
+async function requestDateInput(to) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
   const data = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to,
-    type: "interactive",
-    interactive: {
-      type: "calendar",
-      body: {
-        text: "*Please select a date for your appointment:*",
-      },
+    type: "text",
+    text: {
+      body: "📅 *Please enter your preferred appointment date (YYYY-MM-DD).* \n\n⚠️ The date must be:\n✅ At least *24 hours* from today\n❌ *Not a Sunday*",
     },
   };
 
@@ -388,7 +412,7 @@ async function sendDateSelection(to) {
         Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
       },
     });
-    console.log("Date selection sent:", response.data);
+    console.log("Date request sent:", response.data);
   } catch (error) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
@@ -653,6 +677,59 @@ async function sendCancelRescheduleOptions(to) {
     );
   }
 }
+
+async function sendInvalidDateMessage(to, errorMessage) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "text",
+    text: {
+      body: `⚠️ *Invalid date entered:*\n${errorMessage}\n\n📅 Please enter a valid appointment date (YYYY-MM-DD).`,
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Invalid date message sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+const isValidAppointmentDate = (dateString) => {
+  const inputDate = new Date(dateString);
+  const now = new Date();
+
+  if (isNaN(inputDate))
+    return { valid: false, message: "Invalid date format. Use YYYY-MM-DD." };
+
+  now.setDate(now.getDate() + 1);
+  now.setHours(0, 0, 0, 0);
+
+  if (inputDate < now) {
+    return {
+      valid: false,
+      message: "The date must be at least 24 hours from today.",
+    };
+  }
+
+  if (inputDate.getDay() === 0) {
+    return {
+      valid: false,
+      message: "Appointments cannot be scheduled on Sundays.",
+    };
+  }
+
+  return { valid: true, message: "Valid date." };
+};
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

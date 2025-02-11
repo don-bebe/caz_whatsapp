@@ -67,8 +67,6 @@ function isValidAppointmentDate(dateString) {
   return { valid: true };
 }
 
-
-
 app.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -412,7 +410,7 @@ async function sendServiceOptions(to) {
                 description: "Book a treatment session",
               },
               {
-                id: "service_supportive",
+                id: "service_supportive_care",
                 title: "Supportive Care",
                 description: "Book a supportive care service",
               },
@@ -420,6 +418,11 @@ async function sendServiceOptions(to) {
                 id: "service_breast_care",
                 title: "Breast care",
                 description: "Book a breast care appointment",
+              },
+              {
+                id: "service_relaxation",
+                title: "Relaxation",
+                description: "Book a relaxation service",
               },
             ],
           },
@@ -486,15 +489,15 @@ async function sendTimeSelection(to) {
           {
             title: "Available Time Slots",
             rows: [
-              { id: "time_8am", title: "08:00 AM" },
-              { id: "time_9am", title: "09:00 AM" },
-              { id: "time_10am", title: "10:00 AM" },
-              { id: "time_11am", title: "11:00 AM" },
-              { id: "time_12pm", title: "12:00 PM" },
-              { id: "time_1pm", title: "01:00 PM" },
-              { id: "time_2pm", title: "02:00 PM" },
-              { id: "time_3pm", title: "03:00 PM" },
-              { id: "time_4pm", title: "04:00 PM" },
+              { id: "time_08:00", title: "08:00" },
+              { id: "time_9:00", title: "09:00" },
+              { id: "time_10:00", title: "10:00" },
+              { id: "time_11:00", title: "11:00" },
+              { id: "time_12:00", title: "12:00" },
+              { id: "time_13:00", title: "13:00" },
+              { id: "time_14:00", title: "14:00" },
+              { id: "time_15:00", title: "15:00" },
+              { id: "time_16:00", title: "16:00" },
             ],
           },
         ],

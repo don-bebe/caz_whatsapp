@@ -131,22 +131,17 @@ app.post("/whatsapp/webhook", async (req, res) => {
         // Handle Making Appointment Steps
         if (listReply.startsWith("service_")) {
           userContext[sender] = {
-            mode: "time_selection",
+            mode: "date_input",
             service: listReply.replace("service_", ""),
           };
 
-          await sendTimeSelection(sender);
+          await requestDateInput(sender);
           return res.sendStatus(200);
         }
 
-        if (
-          message.text?.body &&
-          userContext[sender]?.mode === "date_input" &&
-          !userContext[sender]?.date
-        ) {
+        if (message.text?.body && userContext[sender]?.mode === "date_input") {
           const userDate = message.text.body.trim();
           const validation = isValidAppointmentDate(userDate);
-          console.log(userDate);
 
           if (!validation.valid) {
             await sendWhatsAppMessage(sender, validation.message);
@@ -156,7 +151,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
           userContext[sender].date = userDate;
           userContext[sender].mode = "time_selection";
           await sendTimeSelection(sender);
-          return res.sendStatus(200);
         }
 
         if (

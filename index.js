@@ -119,7 +119,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             await sendWhatsAppMessage(sender, validation.message);
             return res.sendStatus(200);
           }
-          userContext[sender].date = message.text;
+          userContext[sender].date = message.text.body;
           await sendTimeSelection(sender);
           return res.sendStatus(200);
         }

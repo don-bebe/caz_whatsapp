@@ -20,17 +20,8 @@ const Appointment = db.define(
         notEmpty: true,
       },
     },
-    gender: {
-      type: DataTypes.ENUM("male", "female"),
-      allowNull: false,
-    },
     service: {
-      type: DataTypes.ENUM(
-        "consultation",
-        "screening and diagnostic tests",
-        "treatment",
-        "supportive care services"
-      ),
+      type: DataTypes.STRING,
       allowNull: false,
     },
     phone: {

@@ -28,39 +28,6 @@ const welcomeMessages = JSON.parse(
 
 const sessionClient = new dialogflow.SessionsClient({ credentials });
 
-const MENU_OPTIONS = {
-  1: {
-    name: "Make an appointment",
-    submenu: { submenu: null },
-  },
-  2: {
-    name: "Manage appointments",
-    submenu: {
-      a: "Upcoming Appointments",
-      b: "Past Appointments",
-      c: "Cancel/Reschedule Appointment",
-    },
-  },
-  3: {
-    name: "Learn about Cancer",
-    submenu: {
-      a: "Breast Cancer",
-      b: "HIV & AIDS Cancer",
-      c: "Cancer in Children",
-      d: "Cervical Cancer",
-    },
-  },
-  4: { name: "Care Services", submenu: null },
-  5: { name: "About Us", submenu: null },
-};
-
-const SERVICE_OPTIONS = {
-  1: { name: "Consultation" },
-  2: { name: "Screening and diagnostic tests" },
-  3: { name: "Treatment" },
-  4: { name: "Supportive care services" },
-};
-
 const userContext = {};
 
 app.get("/whatsapp/webhook", (req, res) => {
@@ -84,82 +51,134 @@ app.post("/whatsapp/webhook", async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const sender = message.from;
-    const text = message.text?.body.trim().toLowerCase();
 
-    const currentContext = userContext[sender];
+    if (message.text) {
+      const text = message.text.body.trim().toLowerCase();
+      const exactMatch = welcomeMessages.some((msg) =>
+        new RegExp(`\\b${msg}\\b`, "i").test(text)
+      );
+      const bestMatch = stringSimilarity.findBestMatch(
+        text,
+        welcomeMessages
+      ).bestMatch;
+      const fuzzyMatch = bestMatch.rating > 0.7;
 
-    const exactMatch = welcomeMessages.some((msg) =>
-      new RegExp(`\\b${msg}\\b`, "i").test(text)
-    );
-    const bestMatch = stringSimilarity.findBestMatch(
-      text,
-      welcomeMessages
-    ).bestMatch;
-    const fuzzyMatch = bestMatch.rating > 0.7;
-
-    if (exactMatch || fuzzyMatch) {
-      await sendWhatsAppList(sender)
-      return res.sendStatus(200);
-    }
-
-    if (await handleAppointmentBooking(sender, text)) {
-      return res.sendStatus(200);
-    }
-
-    if (await handleManageAppointment(sender, text)) {
-      return res.sendStatus(200);
-    }
-
-    if (currentContext && currentContext.submenu) {
-      const selectedSubOptionKey = text;
-      const selectedSubOption = currentContext.submenu[selectedSubOptionKey];
-      if (selectedSubOption) {
-        await sendWhatsAppMessage(
-          sender,
-          `What do you want to know about *${selectedSubOption}*?`
-        );
-        delete userContext[sender];
-      } else {
-        await sendWhatsAppMessage(
-          sender,
-          "Invalid submenu option.\nPlease choose from the list below:\n\n" +
-            generateSubMenu(currentContext.submenu)
-        );
+      if (exactMatch || fuzzyMatch) {
+        await sendWhatsAppList(sender);
+        return res.sendStatus(200);
       }
+    }
+
+    if (message.interactive) {
+      const buttonReply = message.interactive.button_reply?.id;
+      const listReply = message.interactive.list_reply?.id;
+
+      // Handle Make Appointment button
+      if (buttonReply === "make_appointment") {
+        await sendWhatsAppMessage(
+          sender,
+          `You selected ${message.interactive.button_reply.title}`
+        );
+        await sendServiceOptions(sender);
+        return res.sendStatus(200);
+      }
+
+      // Handle Manage Appointments button
+      if (buttonReply === "manage_appointments") {
+        await sendManageAppointmentsMenu(sender);
+        return res.sendStatus(200);
+      }
+
+      //Handle Learn Cancer button
+      if (buttonReply === "learn_cancer") {
+        await sendWhatsAppMessage(
+          sender,
+          "What do you want to know about cancer. Ask any question"
+        );
+        return res.sendStatus(200);
+      }
+
+      if (listReply) {
+        // Handle Making Appointment Steps
+        if (listReply.startsWith("service_")) {
+          userContext[sender] = { service: listReply.replace("service_", "") };
+
+          await sendDateSelection(sender);
+          return res.sendStatus(200);
+        }
+
+        if (
+          message.text &&
+          userContext[sender]?.service &&
+          !userContext[sender]?.date
+        ) {
+          userContext[sender].date = message.text;
+          await sendTimeSelection(sender);
+          return res.sendStatus(200);
+        }
+
+        if (listReply.startsWith("time_")) {
+          userContext[sender].time = listReply.replace("time_", "");
+          await askFullName(sender);
+          return res.sendStatus(200);
+        }
+
+        // Handle Manage Appointment options
+        if (listReply === "upcoming_appointments") {
+          await sendUpcomingAppointments(sender);
+          return res.sendStatus(200);
+        }
+
+        if (listReply === "past_appointments") {
+          await sendPastAppointments(sender);
+          return res.sendStatus(200);
+        }
+
+        if (listReply === "cancel_reschedule") {
+          await sendCancelRescheduleOptions(sender);
+          return res.sendStatus(200);
+        }
+      }
+    }
+
+    if (message.text && !userContext[sender]?.fullName) {
+      userContext[sender].fullName = message.text.trim();
+      userContext[sender].phone = sender;
+      await sendConfirmationForm(sender);
       return res.sendStatus(200);
     }
 
-    if (MENU_OPTIONS[text]) {
-      const selectedOption = MENU_OPTIONS[text];
-      if (selectedOption.submenu) {
-        userContext[sender] = selectedOption;
+    if (
+      message.text &&
+      message.text.toLowerCase() === "confirm" &&
+      userContext[sender]?.fullName
+    ) {
+      const currentContext = userContext[sender];
+      const transaction = await db.transaction();
+      try {
+        await Appointment.create(
+          {
+            fullName: currentContext.fullName,
+            service: currentContext.service,
+            bookingDate: currentContext.date,
+            bookingTime: currentContext.time,
+            phone: currentContext.phone,
+          },
+          { transaction }
+        );
+
+        await transaction.commit();
         await sendWhatsAppMessage(
           sender,
-          `You selected: *${
-            selectedOption.name
-          }*\n\nPlease choose a topic:\n\n${generateSubMenu(
-            selectedOption.submenu
-          )}`
+          `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.}`
         );
-      } else {
-        userContext[sender] = selectedOption;
+      } catch (error) {
+        await transaction.rollback();
+        console.error("Error creating appointment:", error.message);
         await sendWhatsAppMessage(
           sender,
-          `You selected: *${selectedOption.name}*\n\nYou can now type your question about ${selectedOption.name}.`
+          "❌ There was an error with your appointment request. Please try again later."
         );
-      }
-    } else if (currentContext && !currentContext.submenu) {
-      const aiResponse = await generateDialogflowResponse(text, sender);
-      await sendWhatsAppMessage(sender, aiResponse);
-    } else {
-      const aiResponse = await generateDialogflowResponse(text, sender);
-      if (aiResponse.includes("Sorry")) {
-        await sendWhatsAppMessage(
-          sender,
-          `I'm not sure about that. Please choose from the menu below:\n\n${generateMenu()}`
-        );
-      } else {
-        await sendWhatsAppMessage(sender, aiResponse);
       }
     }
   } catch (error) {
@@ -168,366 +187,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
   res.sendStatus(200);
 });
-
-async function handleAppointmentBooking(sender, text) {
-  const currentContext = userContext[sender];
-
-  if (text === "1" && !currentContext) {
-    userContext[sender] = { step: "selectService" };
-    await sendWhatsAppMessage(
-      sender,
-      `🗓️ *Appointment Booking* Please select a service:\n\n ${generateServiceMenu()} \n(Reply with the number of your choice)`
-    );
-    return true;
-  }
-
-  if (currentContext?.step === "selectService") {
-    if (SERVICE_OPTIONS[text]) {
-      userContext[sender] = {
-        step: "enterName",
-        service: SERVICE_OPTIONS[text].name,
-      };
-      await sendWhatsAppMessage(
-        sender,
-        `✅ You have selected *${SERVICE_OPTIONS[text].name}*. \nPlease enter your full name:`
-      );
-      return true;
-    } else {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ Invalid selection. Please choose a valid service:\n${generateServiceMenu()}`
-      );
-      return true;
-    }
-  }
-
-  if (currentContext?.step === "enterName") {
-    userContext[sender] = {
-      step: "selectGender",
-      service: currentContext.service,
-      name: text,
-    };
-    await sendWhatsAppMessage(
-      sender,
-      `✅ Name recorded: *${text}*.\nPlease enter your gender (Male/Female):`
-    );
-    return true;
-  }
-
-  if (currentContext?.step === "selectGender") {
-    if (text.toLowerCase() === "male" || text.toLowerCase() === "female") {
-      userContext[sender] = {
-        step: "enterDate",
-        service: currentContext.service,
-        name: currentContext.name,
-        gender: text,
-      };
-      await sendWhatsAppMessage(
-        sender,
-        `✅ Gender recorded: *${text}*. \nPlease enter the date for your appointment (YYYY-MM-DD):`
-      );
-      return true;
-    } else {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ Invalid gender. Please enter *Male* or *Female*: `
-      );
-      return true;
-    }
-  }
-
-  if (currentContext?.step === "enterDate") {
-    const selectedDate = new Date(text);
-    const today = new Date();
-
-    today.setHours(0, 0, 0, 0);
-    selectedDate.setHours(0, 0, 0, 0);
-
-    if (selectedDate < today) {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ You cannot select today's date or a past date. Please enter a future date for your appointment (YYYY-MM-DD):`
-      );
-      return true;
-    }
-
-    userContext[sender] = {
-      step: "enterTime",
-      service: currentContext.service,
-      name: currentContext.name,
-      gender: currentContext.gender,
-      date: text,
-    };
-
-    await sendWhatsAppMessage(
-      sender,
-      `✅ Date recorded: *${text}*.\nPlease enter the time for your appointment in 24-hour format (HH:MM):`
-    );
-    return true;
-  }
-
-  if (currentContext?.step === "enterTime") {
-    const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
-
-    if (timeRegex.test(text)) {
-      userContext[sender] = {
-        step: "preview",
-        service: currentContext.service,
-        name: currentContext.name,
-        gender: currentContext.gender,
-        date: currentContext.date,
-        time: text,
-        phone: sender,
-      };
-      await sendWhatsAppMessage(
-        sender,
-        `📋 *Appointment Summary:*\n👤 Name: *${currentContext.name}*\n⚧ Gender: *${currentContext.gender}*\n📅 Date: *${currentContext.date}*\n⏰ Time: *${text}*\n📞 Phone: *${sender}*\n\n✅ Please confirm with *YES* or cancel with *NO*.`
-      );
-      return true;
-    } else {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ Invalid time format. Please enter the time in 24-hour format (HH:MM):`
-      );
-      return true;
-    }
-  }
-
-  if (currentContext?.step === "preview") {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const existingAppointment = await Appointment.findOne({
-      where: {
-        phone: sender,
-        status: "pending",
-      },
-    });
-
-    const todayAppointment = await Appointment.findOne({
-      where: {
-        phone: sender,
-        createdAt: {
-          [Op.gte]: today,
-        },
-      },
-    });
-
-    if (existingAppointment) {
-      await sendWhatsAppMessage(
-        sender,
-        `⚠️ You already have an appointment that is pending approval. Please wait for confirmation before making another request.`
-      );
-      return true;
-    }
-
-    if (todayAppointment) {
-      await sendWhatsAppMessage(
-        sender,
-        `⚠️ You can only apply for one appointment per day. Please try again tomorrow.`
-      );
-      return true;
-    }
-
-    if (text.toLowerCase() === "yes") {
-      const transaction = await db.transaction();
-      try {
-        await Appointment.create(
-          {
-            fullName: currentContext.name,
-            gender: currentContext.gender,
-            service: currentContext.service,
-            bookingDate: currentContext.date,
-            bookingTime: currentContext.time,
-            phone: currentContext.phone,
-          },
-          { transaction }
-        );
-        await transaction.commit();
-        await sendWhatsAppMessage(
-          sender,
-          `✅ Your appointment request has been submitted for ${
-            currentContext.date
-          } at ${
-            currentContext.time
-          }. Please wait for approval.\nWhat would you like to do next?\n\n${generateMenu()}`
-        );
-      } catch (error) {
-        await transaction.rollback();
-        await sendWhatsAppMessage(
-          sender,
-          `❌ Failed to save your appointment. Please try again later.\nWhat would you like to do next?\n\n${generateMenu()}`
-        );
-      }
-      delete userContext[sender];
-    } else if (text.toLowerCase() === "no") {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ Your appointment booking has been canceled. You can start over if needed.\n\n${generateMenu()}`
-      );
-      delete userContext[sender];
-    } else {
-      await sendWhatsAppMessage(
-        sender,
-        `⚠️ Please reply with *YES* to confirm or *NO* to cancel.`
-      );
-    }
-    return true;
-  }
-
-  return false;
-}
-
-async function handleManageAppointment(sender, text) {
-  const currentContext = userContext[sender];
-
-  if (text === "2" && !currentContext) {
-    userContext[sender] = { step: "manageAppointments" };
-    await sendWhatsAppMessage(
-      sender,
-      `You selected: *Manage Appointments*\n\nPlease choose an option:\n\n${generateSubMenu(
-        MENU_OPTIONS[2].submenu
-      )}`
-    );
-    return true;
-  }
-
-  if (currentContext?.step === "manageAppointments") {
-    if (text === "a" || text === "A") {
-      const today = new Date();
-      const upcomingAppointments = await Appointment.findAll({
-        where: {
-          phone: sender,
-          bookingDate: { [Op.gte]: today },
-        },
-        order: [["bookingDate", "ASC"]],
-      });
-
-      if (upcomingAppointments.length === 0) {
-        await sendWhatsAppMessage(sender, "You have no upcoming appointments.");
-      } else {
-        let message = `🗓️ *Upcoming Appointments:*\n`;
-        upcomingAppointments.forEach((appointment) => {
-          message += `📅 ${appointment.bookingDate} at ${appointment.bookingTime}\nService: ${appointment.service}\nStatus: ${appointment.status}\n`;
-        });
-        await sendWhatsAppMessage(sender, message);
-      }
-      delete userContext[sender];
-      return true;
-    } else if (text === "b" || text === "B") {
-      const appointments = await Appointment.findAll({
-        where: { phone: sender },
-        order: [["createdAt", "DESC"]],
-      });
-      if (appointments.length === 0) {
-        await sendWhatsAppMessage(sender, "You have no past appointments.");
-      } else {
-        let message = `🗓️ *Past Appointments:*\n`;
-        appointments.forEach((appointment) => {
-          message += `📅 ${appointment.bookingDate} at ${appointment.bookingTime}\nService: ${appointment.service}\nStatus: ${appointment.status}\n`;
-        });
-        await sendWhatsAppMessage(sender, message);
-      }
-      delete userContext[sender];
-      return true;
-    } else if (text === "c" || text === "C") {
-      const appointments = await Appointment.findAll({
-        where: {
-          phone: sender,
-          status: "pending",
-        },
-      });
-      if (appointments.length > 0) {
-        let message = `📅 *Your Appointments:* \n`;
-        appointments.forEach((appointment, index) => {
-          message += `${index + 1}. ${appointment.bookingDate} at ${
-            appointment.bookingTime
-          } - Service: ${appointment.service}\n`;
-        });
-        message += `\nTo cancel or reschedule, reply with the appointment number:`;
-        userContext[sender] = { step: "cancelOrReschedule", appointments };
-        await sendWhatsAppMessage(sender, message);
-      } else {
-        await sendWhatsAppMessage(
-          sender,
-          `You have no active appointments to cancel or reschedule.`
-        );
-      }
-      return true;
-    } else {
-      // Invalid submenu option
-      await sendWhatsAppMessage(
-        sender,
-        "Invalid selection. Please choose from the list below:\n\n" +
-          generateSubMenu(MENU_OPTIONS[2].submenu)
-      );
-    }
-    return true;
-  }
-
-  if (currentContext?.step === "cancelOrReschedule") {
-    const selectedAppointment = currentContext.appointments[parseInt(text) - 1];
-    if (selectedAppointment) {
-      await sendWhatsAppMessage(
-        sender,
-        `You selected: *${selectedAppointment.bookingDate} at ${selectedAppointment.bookingTime}*.\n\nWould you like to cancel or reschedule? Reply with *CANCEL* or *RESCHEDULE*.`
-      );
-      return;
-    } else {
-      return await sendWhatsAppMessage(
-        sender,
-        `Invalid appointment number. Please choose again.`
-      );
-    }
-  }
-
-  if (
-    currentContext?.step === "cancelOrReschedule" &&
-    text.toLowerCase() === "cancel"
-  ) {
-    const appointmentToCancel = currentContext.appointments[parseInt(text) - 1];
-    await appointmentToCancel.update({ status: "cancelled" });
-
-    await sendWhatsAppMessage(
-      sender,
-      `Your appointment on ${appointmentToCancel.bookingDate} at ${appointmentToCancel.bookingTime} has been cancelled.`
-    );
-    delete userContext[sender];
-  }
-
-  if (
-    currentContext?.step === "cancelOrReschedule" &&
-    text.toLowerCase() === "reschedule"
-  ) {
-    const appointmentToReschedule =
-      currentContext.appointments[parseInt(text) - 1];
-    userContext[sender] = {
-      step: "selectNewDate",
-      appointmentId: appointmentToReschedule.uuid,
-    };
-
-    await sendWhatsAppMessage(
-      sender,
-      `You selected to reschedule your appointment on ${appointmentToReschedule.bookingDate} at ${appointmentToReschedule.bookingTime}.\nPlease enter a new date (YYYY-MM-DD):`
-    );
-  }
-
-  if (currentContext?.step === "selectNewDate") {
-    const appointmentToReschedule = await Appointment.findByPk(
-      currentContext.appointmentId
-    );
-    appointmentToReschedule.bookingDate = text;
-
-    await appointmentToReschedule.save();
-    await sendWhatsAppMessage(
-      sender,
-      `Your appointment has been rescheduled to ${text}.`
-    );
-    delete userContext[sender];
-  }
-
-  return false;
-}
 
 async function generateDialogflowResponse(userInput, sessionId) {
   try {
@@ -557,14 +216,52 @@ async function generateDialogflowResponse(userInput, sessionId) {
   }
 }
 
-async function sendWhatsAppImage(to, imageUrl, caption) {
+async function sendWhatsAppList(to) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
   const data = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to,
-    type: "image",
-    image: { link: imageUrl, caption },
+    type: "interactive",
+    interactive: {
+      type: "button",
+      header: {
+        type: "image",
+        image: {
+          link: "https://cancerzimbabwe.org/images/logo.png",
+          caption: "",
+        },
+      },
+      body: {
+        text: "*Welcome to the Cancer Association of Zimbabwe Chatbot*\n\nHow can we assist you today?",
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: "make_appointment",
+              title: "Make an appointment",
+            },
+          },
+          {
+            type: "reply",
+            reply: {
+              id: "manage_appointments",
+              title: "Manage appointments",
+            },
+          },
+          {
+            type: "reply",
+            reply: {
+              id: "learn_cancer",
+              title: "Learn about Cancer",
+            },
+          },
+        ],
+      },
+    },
   };
 
   try {
@@ -574,7 +271,7 @@ async function sendWhatsAppImage(to, imageUrl, caption) {
         Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
       },
     });
-    console.log("Image sent:", response.data);
+    console.log("Message sent:", response.data);
   } catch (error) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
@@ -604,29 +301,7 @@ async function sendWhatsAppMessage(to, message) {
   }
 }
 
-function generateMenu() {
-  return Object.entries(MENU_OPTIONS)
-    .map(([key, option]) => `${key}. ${option.name}`)
-    .join("\n");
-}
-
-function generateSubMenu(submenu) {
-  let menuString = "";
-  let counter = "a";
-  for (const key in submenu) {
-    menuString += `${counter}. ${submenu[key]}\n`;
-    counter = String.fromCharCode(counter.charCodeAt(0) + 1);
-  }
-  return menuString;
-}
-
-function generateServiceMenu() {
-  return Object.entries(SERVICE_OPTIONS)
-    .map(([key, option]) => `${key}. ${option.name}`)
-    .join("\n");
-}
-
-async function sendWhatsAppList(to) {
+async function sendServiceOptions(to) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
   const data = {
@@ -636,92 +311,40 @@ async function sendWhatsAppList(to) {
     type: "interactive",
     interactive: {
       type: "list",
-      header: {
-        type: "image",
-        image: {
-          link: "https://cancerzimbabwe.org/images/logo.png",
-          caption: "",
-        },
-      },
       body: {
-        text: "*Welcome to the Cancer Association of Zimbabwe Chatbot*\n\nHow can we assist you today?",
+        text: "*Choose a service from below:*",
       },
       action: {
-        button: "Main Menu",
+        button: "Select Service",
         sections: [
           {
-            title: "Please select an option",
+            title: "Available Services",
             rows: [
               {
-                id: "make-appointment",
-                title: "Make an appointment",
-                description: "Book a consultation or screening appointment",
-              },
-              {
-                id: "manage-appointments",
-                title: "Manage appointments",
-                description: "View, reschedule, or cancel your appointment",
-              },
-              {
-                id: "learn-cancer",
-                title: "Learn about Cancer",
-                description:
-                  "Get information about cancer types, symptoms, and treatments",
-              },
-              {
-                id: "care-services",
-                title: "Care Services",
-                description: "Explore support and care services available",
-              },
-              {
-                id: "exit",
-                title: "Exit",
-                description: "End the conversation",
-              },
-            ],
-          },
-          {
-            title: "Manage Appointments",
-            rows: [
-              {
-                id: "upcoming-appointments",
-                title: "Upcoming appointments",
-                description: "View your upcoming appointments",
-              },
-              {
-                id: "past-appointments",
-                title: "Past appointments",
-                description: "View your past appointments",
-              },
-              {
-                id: "cancel-reschedule",
-                title: "Cancel/Reschedule",
-                description: "Modify your appointment",
-              },
-            ],
-          },
-          {
-            title: "Choose a Service",
-            rows: [
-              {
-                id: "consultation",
+                id: "service_consultation",
                 title: "Consultation",
                 description: "Book a consultation appointment",
               },
               {
-                id: "screening-diagnostic",
-                title: "Screening and diagnostic tests",
+                id: "service_screening_diagnostic",
+                title: "Screening & Diagnostic Tests",
                 description: "Book a screening or diagnostic test",
               },
               {
-                id: "treatment",
+                id: "service_treatment",
                 title: "Treatment",
                 description: "Book a treatment session",
               },
               {
-                id: "supportive-care",
-                title: "Supportive care",
+                id: "service_supportive_care",
+                title: "Supportive Care",
                 description: "Book a supportive care service",
+              },
+              {
+                id: "service_breast_care_mastectomy-clinic",
+                title: "Breast care & Mastectomy Clinic",
+                description:
+                  "Book a breast care & mastectomy clinic appointment",
               },
             ],
           },
@@ -737,9 +360,298 @@ async function sendWhatsAppList(to) {
         Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
       },
     });
-    console.log("Message sent:", response.data);
+    console.log("Service options sent:", response.data);
   } catch (error) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function sendDateSelection(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "calendar",
+      body: {
+        text: "*Please select a date for your appointment:*",
+      },
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Date selection sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function sendTimeSelection(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: {
+        text: "*Please select a time for your appointment:*",
+      },
+      action: {
+        button: "Select Time",
+        sections: [
+          {
+            title: "Available Time Slots",
+            rows: [
+              { id: "time_8am", title: "08:00 AM" },
+              { id: "time_9am", title: "09:00 AM" },
+              { id: "time_10am", title: "10:00 AM" },
+              { id: "time_11am", title: "11:00 AM" },
+              { id: "time_12pm", title: "12:00 PM" },
+              { id: "time_1pm", title: "01:00 PM" },
+              { id: "time_2pm", title: "02:00 PM" },
+              { id: "time_3pm", title: "03:00 PM" },
+              { id: "time_4pm", title: "04:00 PM" },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Time selection sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function askFullName(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "text",
+    text: {
+      body: "*Please enter your full name:*",
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Full name request sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function sendConfirmationForm(to) {
+  const { service, date, time, fullName } = userContext[to];
+
+  const confirmationMessage = `Please confirm your appointment details:
+  - **Service**: ${service}
+  - **Date**: ${date}
+  - **Time**: ${time}
+  - **Full Name**: ${fullName}
+
+If everything is correct, reply with 'Confirm' to book your appointment.`;
+
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "text",
+    text: { body: confirmationMessage },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Confirmation form sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function sendManageAppointmentsMenu(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: {
+        text: "*Manage your appointments:*",
+      },
+      action: {
+        button: "Select Option",
+        sections: [
+          {
+            title: "Appointment Options",
+            rows: [
+              {
+                id: "upcoming_appointments",
+                title: "📅 Upcoming Appointments",
+                description: "View your scheduled upcoming appointments",
+              },
+              {
+                id: "past_appointments",
+                title: "🗓️ Past Appointments",
+                description: "View your past completed appointments",
+              },
+              {
+                id: "cancel_reschedule",
+                title: "❌ Cancel / Reschedule",
+                description: "Cancel or reschedule an existing appointment",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Manage appointments menu sent:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function sendUpcomingAppointments(to) {
+  try {
+    const upcomingAppointments = await Appointment.findAll({
+      where: {
+        phone: to,
+        bookingDate: { [Op.gte]: new Date() }, // Future dates
+      },
+      order: [["bookingDate", "ASC"]],
+    });
+
+    if (upcomingAppointments.length === 0) {
+      await sendWhatsAppMessage(to, "🔔 You have no upcoming appointments.");
+      return;
+    }
+
+    let message = "*Your Upcoming Appointments:*\n\n";
+    upcomingAppointments.forEach((apt, index) => {
+      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service}\n\n`;
+    });
+
+    await sendWhatsAppMessage(to, message);
+  } catch (error) {
+    console.error("Error fetching upcoming appointments:", error.message);
+    await sendWhatsAppMessage(
+      to,
+      "❌ Unable to fetch upcoming appointments. Please try again later."
+    );
+  }
+}
+
+async function sendPastAppointments(to) {
+  try {
+    const pastAppointments = await Appointment.findAll({
+      where: {
+        phone: to,
+        bookingDate: { [Op.lt]: new Date() }, // Past dates
+      },
+      order: [["bookingDate", "DESC"]],
+    });
+
+    if (pastAppointments.length === 0) {
+      await sendWhatsAppMessage(to, "📌 You have no past appointments.");
+      return;
+    }
+
+    let message = "*Your Past Appointments:*\n\n";
+    pastAppointments.forEach((apt, index) => {
+      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service}\n\n`;
+    });
+
+    await sendWhatsAppMessage(to, message);
+  } catch (error) {
+    console.error("Error fetching past appointments:", error.message);
+    await sendWhatsAppMessage(
+      to,
+      "❌ Unable to fetch past appointments. Please try again later."
+    );
+  }
+}
+
+async function sendCancelRescheduleOptions(to) {
+  try {
+    const upcomingAppointments = await Appointment.findAll({
+      where: {
+        phone: to,
+        bookingDate: { [Op.gte]: new Date() }, // Future dates only
+      },
+      order: [["bookingDate", "ASC"]],
+    });
+
+    if (upcomingAppointments.length === 0) {
+      await sendWhatsAppMessage(
+        to,
+        "🚫 You have no upcoming appointments to cancel or reschedule."
+      );
+      return;
+    }
+
+    let message = "*Select an appointment to cancel or reschedule:*\n\n";
+    upcomingAppointments.forEach((apt, index) => {
+      message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
+        apt.bookingTimeTitle
+      }*\n🩺 ${apt.serviceTitle}\n\n`;
+    });
+
+    await sendWhatsAppMessage(
+      to,
+      message + "Reply with the number of the appointment."
+    );
+  } catch (error) {
+    console.error("Error fetching appointments:", error.message);
+    await sendWhatsAppMessage(
+      to,
+      "❌ Unable to fetch appointments. Please try again later."
+    );
   }
 }
 

@@ -140,24 +140,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
 
         if (
-          message.text?.body &&
-          userContext[sender]?.mode === "date_input" &&
-          !userContext[sender]?.date
-        ) {
-          userContext[sender].date = message.text.body.trim();
-          const validation = isValidAppointmentDate(userContext[sender].date);
-
-          if (!validation.valid) {
-            await sendWhatsAppMessage(sender, validation.message);
-            return res.sendStatus(200);
-          }
-
-          userContext[sender].mode = "time_selection";
-          await sendTimeSelection(sender);
-          return res.sendStatus(200);
-        }
-
-        if (
           userContext[sender]?.mode === "time_selection" &&
           listReply.startsWith("time_")
         ) {
@@ -186,6 +168,24 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
       }
+    }
+
+    if (
+      message.text?.body &&
+      userContext[sender]?.mode === "date_input" &&
+      !userContext[sender]?.date
+    ) {
+      const userDate = message.text.body.trim();
+      const validation = isValidAppointmentDate(userDate);
+
+      if (!validation.valid) {
+        await sendWhatsAppMessage(sender, validation.message);
+        return res.sendStatus(200);
+      }
+      userContext[sender].date = userDate;
+      userContext[sender].mode = "time_selection";
+      await sendTimeSelection(sender);
+      return res.sendStatus(200);
     }
 
     if (

@@ -108,7 +108,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
 
         if (
-          message.text &&
+          message.text.body &&
           userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {

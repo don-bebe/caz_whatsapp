@@ -42,7 +42,7 @@ function isValidAppointmentDate(dateString) {
   }
 
   const now = moment();
-  if (date.isBefore(now.add(1, "day"), "day")) {
+  if (date.isBefore(now, "day")) {
     return {
       valid: false,
       message: "Please select a date at least 24 hours from today.",

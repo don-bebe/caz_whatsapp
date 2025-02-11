@@ -131,11 +131,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
         // Handle Making Appointment Steps
         if (listReply.startsWith("service_")) {
           userContext[sender] = {
-            mode: "date_input",
+            mode: "time_selection",
             service: listReply.replace("service_", ""),
           };
 
-          await requestDateInput(sender);
+          await sendTimeSelection(sender);
           return res.sendStatus(200);
         }
 

@@ -101,7 +101,10 @@ app.post("/whatsapp/webhook", async (req, res) => {
       if (listReply) {
         // Handle Making Appointment Steps
         if (listReply.startsWith("service_")) {
-          userContext[sender] = { service: listReply.replace("service_", "") };
+          userContext[sender] = {
+            mode: "date_input",
+            service: listReply.replace("service_", ""),
+          };
 
           await requestDateInput(sender);
           return res.sendStatus(200);
@@ -109,6 +112,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
         if (
           message.text?.body &&
+          userContext[sender]?.mode === "date_input" &&
           userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {
@@ -120,12 +124,17 @@ app.post("/whatsapp/webhook", async (req, res) => {
             return res.sendStatus(200);
           }
           userContext[sender].date = userDate;
+          userContext[sender].mode = "time_selection";
           await sendTimeSelection(sender);
           return res.sendStatus(200);
         }
 
-        if (listReply.startsWith("time_")) {
+        if (
+          userContext[sender]?.mode === "time_selection" &&
+          listReply.startsWith("time_")
+        ) {
           userContext[sender].time = listReply.replace("time_", "");
+          userContext[sender].mode = "name_input";
           await askFullName(sender);
           return res.sendStatus(200);
         }
@@ -151,7 +160,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     }
 
-    if (message.text?.body && !userContext[sender]?.fullName) {
+    if (
+      message.text?.body &&
+      !userContext[sender]?.fullName &&
+      userContext[sender]?.mode === "name_input"
+    ) {
       userContext[sender].fullName = message.text.body.trim();
       userContext[sender].phone = sender;
       await sendConfirmationForm(sender);

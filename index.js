@@ -31,6 +31,35 @@ const sessionClient = new dialogflow.SessionsClient({ credentials });
 
 const userContext = {};
 
+function isValidAppointmentDate(dateString) {
+  const date = moment(dateString, "YYYY-MM-DD", true);
+
+  if (!date.isValid()) {
+    return {
+      valid: false,
+      message: "Please enter a valid date in YYYY-MM-DD format.",
+    };
+  }
+
+  const now = moment();
+  if (date.isBefore(now.add(1, "day"), "day")) {
+    return {
+      valid: false,
+      message: "Please select a date at least 24 hours from today.",
+    };
+  }
+
+  if (date.day() === 0) {
+    return {
+      valid: false,
+      message:
+        "Appointments cannot be scheduled on Sundays. Please select another day.",
+    };
+  }
+
+  return { valid: true };
+}
+
 app.get("/whatsapp/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -113,7 +142,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
         if (
           message.text?.body &&
           userContext[sender]?.mode === "date_input" &&
-          userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {
           const userDate = message.text.body.trim();
@@ -688,35 +716,6 @@ async function sendCancelRescheduleOptions(to) {
       "❌ Unable to fetch appointments. Please try again later."
     );
   }
-}
-
-function isValidAppointmentDate(dateString) {
-  const date = moment(dateString, "YYYY-MM-DD", true);
-
-  if (!date.isValid()) {
-    return {
-      valid: false,
-      message: "Please enter a valid date in YYYY-MM-DD format.",
-    };
-  }
-
-  const now = moment();
-  if (date.isBefore(now.add(1, "day"), "day")) {
-    return {
-      valid: false,
-      message: "Please select a date at least 24 hours from today.",
-    };
-  }
-
-  if (date.day() === 0) {
-    return {
-      valid: false,
-      message:
-        "Appointments cannot be scheduled on Sundays. Please select another day.",
-    };
-  }
-
-  return { valid: true };
 }
 
 app.listen(PORT, () => {

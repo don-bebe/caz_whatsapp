@@ -46,21 +46,24 @@ function isValidAppointmentDate(dateString) {
   if (date.isBefore(now, "day")) {
     return {
       valid: false,
-      message: "Appointments cannot be scheduled for past dates. Please select a future date.",
+      message:
+        "Appointments cannot be scheduled for past dates. Please select a future date.",
     };
   }
 
   if (date.isSame(now, "day")) {
     return {
       valid: false,
-      message: "Appointments cannot be scheduled for today. Please select a different day.",
+      message:
+        "Appointments cannot be scheduled for today. Please select a different day.",
     };
   }
 
   if (date.day() === 0) {
     return {
       valid: false,
-      message: "Appointments cannot be scheduled on Sundays. Please select another day.",
+      message:
+        "Appointments cannot be scheduled on Sundays. Please select another day.",
     };
   }
 
@@ -134,6 +137,79 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
+      if (buttonReply === "confirm_appointment") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const existingAppointment = await Appointment.findOne({
+          where: {
+            phone: sender,
+            status: "pending",
+          },
+        });
+
+        const todayAppointment = await Appointment.findOne({
+          where: {
+            phone: sender,
+            createdAt: {
+              [Op.gte]: today,
+            },
+          },
+        });
+
+        if (existingAppointment) {
+          await sendWhatsAppMessage(
+            sender,
+            `⚠️ You already have an appointment that is pending approval. Please wait for confirmation before making another request.`
+          );
+          return true;
+        }
+
+        if (todayAppointment) {
+          await sendWhatsAppMessage(
+            sender,
+            `⚠️ You can only apply for one appointment per day. Please try again tomorrow.`
+          );
+          return true;
+        }
+
+        const currentContext = userContext[sender];
+        const transaction = await db.transaction();
+        try {
+          await Appointment.create(
+            {
+              fullName: currentContext.fullName,
+              service: currentContext.service,
+              bookingDate: currentContext.date,
+              bookingTime: currentContext.time,
+              phone: currentContext.phone,
+            },
+            { transaction }
+          );
+
+          await transaction.commit();
+          await sendWhatsAppMessage(
+            sender,
+            `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.}`
+          );
+        } catch (error) {
+          await transaction.rollback();
+          console.error("Error creating appointment:", error.message);
+          await sendWhatsAppMessage(
+            sender,
+            "❌ There was an error with your appointment request. Please try again later."
+          );
+        }
+      }
+
+      if (buttonReply === "reject_appointment") {
+        await sendWhatsAppMessage(
+          sender,
+          "You have cancelled the appointment booking"
+        );
+        await sendWhatsAppList(sender);
+      }
+
       if (listReply) {
         // Handle Making Appointment Steps
         if (listReply.startsWith("service_")) {
@@ -204,39 +280,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
       userContext[sender].phone = sender;
       await sendConfirmationForm(sender);
       return res.sendStatus(200);
-    }
-
-    if (
-      message.text?.body?.toLowerCase() === "confirm" &&
-      userContext[sender]?.fullName
-    ) {
-      const currentContext = userContext[sender];
-      const transaction = await db.transaction();
-      try {
-        await Appointment.create(
-          {
-            fullName: currentContext.fullName,
-            service: currentContext.service,
-            bookingDate: currentContext.date,
-            bookingTime: currentContext.time,
-            phone: currentContext.phone,
-          },
-          { transaction }
-        );
-
-        await transaction.commit();
-        await sendWhatsAppMessage(
-          sender,
-          `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.}`
-        );
-      } catch (error) {
-        await transaction.rollback();
-        console.error("Error creating appointment:", error.message);
-        await sendWhatsAppMessage(
-          sender,
-          "❌ There was an error with your appointment request. Please try again later."
-        );
-      }
     }
 
     if (message.text?.body && userContext[sender]?.mode === "learn_cancer") {
@@ -547,22 +590,37 @@ async function askFullName(to) {
 async function sendConfirmationForm(to) {
   const { service, date, time, fullName } = userContext[to];
 
-  const confirmationMessage = `Please confirm your appointment details:
-  - **Service**: ${service}
-  - **Date**: ${date}
-  - **Time**: ${time}
-  - **Full Name**: ${fullName}
-
-If everything is correct, reply with 'Confirm' to book your appointment.`;
-
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
   const data = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to,
-    type: "text",
-    text: { body: confirmationMessage },
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: `Please confirm your appointment details:\n\n- **Service**: ${service}\n- **Date**: ${date}\n- **Time**: ${time}\n- **Full Name**: ${fullName}`,
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: "confirm_appointment",
+              title: "✅ Yes",
+            },
+          },
+          {
+            type: "reply",
+            reply: {
+              id: "reject_appointment",
+              title: "❌ No",
+            },
+          },
+        ],
+      },
+    },
   };
 
   try {
@@ -572,7 +630,7 @@ If everything is correct, reply with 'Confirm' to book your appointment.`;
         Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
       },
     });
-    console.log("Confirmation form sent:", response.data);
+    console.log("Confirmation form sent with buttons:", response.data);
   } catch (error) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }

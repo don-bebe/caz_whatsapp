@@ -190,7 +190,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           await transaction.commit();
           await sendWhatsAppMessage(
             sender,
-            `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.}`
+            `✅ Your appointment request has been submitted for ${currentContext.date} at ${currentContext.time}.\n *Please wait for approval*.`
           );
         } catch (error) {
           await transaction.rollback();

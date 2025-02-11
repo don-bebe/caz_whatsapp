@@ -5,6 +5,7 @@ const dialogflow = require("@google-cloud/dialogflow");
 const stringSimilarity = require("string-similarity");
 const fs = require("fs");
 const path = require("path");
+const moment = require("moment");
 const { Op } = require("sequelize");
 const db = require("./config/dbconnection");
 const Appointment = require("./models/Appointment");
@@ -111,7 +112,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           userContext[sender]?.service &&
           !userContext[sender]?.date
         ) {
-          const userDate = message.text;
+          const userDate = message.text.trim();
           const validation = isValidAppointmentDate(userDate);
 
           if (!validation.valid) {
@@ -679,57 +680,37 @@ async function sendCancelRescheduleOptions(to) {
 }
 
 async function sendInvalidDateMessage(to, errorMessage) {
-  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
-
-  const data = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to,
-    type: "text",
-    text: {
-      body: `⚠️ *Invalid date entered:*\n${errorMessage}\n\n📅 Please enter a valid appointment date (YYYY-MM-DD).`,
-    },
-  };
-
-  try {
-    const response = await axios.post(url, data, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
-      },
-    });
-    console.log("Invalid date message sent:", response.data);
-  } catch (error) {
-    console.error("WhatsApp API Error:", error.response?.data || error.message);
-  }
+  await sendWhatsAppMessage(to, `❌ ${errorMessage}`);
 }
 
-const isValidAppointmentDate = (dateString) => {
-  const inputDate = new Date(dateString);
-  const now = new Date();
+function isValidAppointmentDate(dateString) {
+  const date = moment(dateString, "YYYY-MM-DD", true);
 
-  if (isNaN(inputDate))
-    return { valid: false, message: "Invalid date format. Use YYYY-MM-DD." };
-
-  now.setDate(now.getDate() + 1);
-  now.setHours(0, 0, 0, 0);
-
-  if (inputDate < now) {
+  if (!date.isValid()) {
     return {
       valid: false,
-      message: "The date must be at least 24 hours from today.",
+      message: "Please enter a valid date in YYYY-MM-DD format.",
     };
   }
 
-  if (inputDate.getDay() === 0) {
+  const now = moment();
+  if (date.isBefore(now.add(1, "day"), "day")) {
     return {
       valid: false,
-      message: "Appointments cannot be scheduled on Sundays.",
+      message: "Please select a date at least 24 hours from today.",
     };
   }
 
-  return { valid: true, message: "Valid date." };
-};
+  if (date.day() === 0) {
+    return {
+      valid: false,
+      message:
+        "Appointments cannot be scheduled on Sundays. Please select another day.",
+    };
+  }
+
+  return { valid: true };
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

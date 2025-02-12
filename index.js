@@ -308,7 +308,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         ) {
           userContext[sender] = {
             mode: "can_res",
-            appointmentUuid: listReply.replace("service_", ""),
+            appointmentUuid: listReply.replace("apt_", ""),
           };
           await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);

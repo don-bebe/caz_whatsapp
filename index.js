@@ -758,7 +758,7 @@ async function sendCancelRescheduleOptions(to) {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() }, 
+        bookingDate: { [Op.gte]: new Date() },
       },
       order: [["bookingDate", "ASC"]],
     });
@@ -827,19 +827,26 @@ async function sendWhatsAppInteractiveMessage(to, message) {
         Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
       },
     });
-    if (!response.ok) {
-      throw new Error(data.error?.message || "Failed to send message");
+
+    if (response.status === 200) {
+      console.log("WhatsApp message sent successfully:", response.data);
+    } else {
+      console.error(`Error: Received status code ${response.status}`);
     }
-    console.log("WhatsApp message sent successfully:", response.data);
   } catch (error) {
     if (error.response) {
-      console.error("WhatsApp API Error:", error.response.data || error.message);
+      console.error(
+        "WhatsApp API Error:",
+        error.response.data || error.message
+      );
     } else {
-      console.error("WhatsApp API Error: No response data available", error.message);
+      console.error(
+        "WhatsApp API Error: No response data available",
+        error.message
+      );
     }
   }
 }
-
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -783,7 +783,8 @@ async function sendUpcomingAppointments(to) {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() }, // Future dates
+        bookingDate: { [Op.gte]: new Date() },
+        status: !"cancelled",
       },
       order: [["bookingDate", "ASC"]],
     });

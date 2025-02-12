@@ -6,9 +6,11 @@ const stringSimilarity = require("string-similarity");
 const fs = require("fs");
 const path = require("path");
 const moment = require("moment");
-const { Op } = require("sequelize");
+const { Op, where } = require("sequelize");
 const db = require("./config/dbconnection");
 const Appointment = require("./models/Appointment");
+const RescheduleAppointment = require("./models/RescheduleAppointment");
+const AppointmentHistory = require("./models/AppointmentHistory");
 
 const app = express();
 const PORT = process.env.APP_PORT || 5000;
@@ -229,6 +231,82 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
+      //Handle confirm of rescheduling appointment process
+      if (buttonReply === "confirm_reschedule") {
+        const transaction = await db.transaction();
+        const currentContext = userContext[sender];
+        try {
+          const existingReschedule = await RescheduleAppointment.findOne({
+            where: {
+              appointment_uuid: currentContext.appointmentUuid,
+            },
+            transaction,
+          });
+
+          if (existingReschedule) {
+            await transaction.rollback();
+            await sendWhatsAppMessage(
+              sender,
+              `⚠️ You can only reschedule an appointment once.`
+            );
+            return res.sendStatus(200);
+          }
+
+          const response = await RescheduleAppointment.create(
+            {
+              appointment_uuid: currentContext.appointmentUuid,
+              rescheduledDate: currentContext.rescheduledDate,
+              rescheduledTime: currentContext.rescheduledTime,
+              message: currentContext.reason,
+            },
+            { transaction }
+          );
+
+          if (!response) {
+            await transaction.rollback();
+            await sendWhatsAppMessage(
+              sender,
+              `⚠️ Failed to reschedule your appointment.`
+            );
+            return res.sendStatus(200);
+          }
+
+          await Appointment.update(
+            {
+              status: "rescheduled",
+              where: {
+                uuid: currentContext.appointmentUuid,
+              },
+            },
+            { transaction }
+          );
+
+          await AppointmentHistory.create(
+            {
+              appointment_uuid: currentContext.appointmentUuid,
+              status: "rescheduled",
+              reason: currentContext.reason,
+            },
+            { transaction }
+          );
+          await transaction.commit();
+          await sendWhatsAppMessage(
+            sender,
+            `✅ Your appointment has been rescheduled for ${currentContext.rescheduledDate} at ${currentContext.rescheduledTime}.\n *Please wait for approval*.`
+          );
+          await sendWhatsAppList(sender);
+          return res.sendStatus(200);
+        } catch (error) {
+          await transaction.rollback();
+          console.error("Error creating appointment:", error.message);
+          await sendWhatsAppMessage(
+            sender,
+            "❌ There was an error with your appointment rescheduling. Please try again later."
+          );
+          return res.sendStatus(500);
+        }
+      }
+
       //cancel an upcoming appointment and change it status to cancel in database
       if (
         buttonReply === "cancel_appointment" &&
@@ -249,6 +327,12 @@ app.post("/whatsapp/webhook", async (req, res) => {
           }
 
           await appointment.update({ status: "cancelled" }, { transaction });
+
+          await AppointmentHistory.create({
+            appointment_uuid: appointment.uuid,
+            status: "cancelled",
+            reason: "cancellation",
+          });
 
           await transaction.commit();
 
@@ -817,8 +901,9 @@ async function sendUpcomingAppointments(to) {
       where: {
         phone: to,
         bookingDate: { [Op.gte]: new Date() },
-        status: !"cancelled",
+        status: { [Op.ne]: "cancelled" },
       },
+      include: [{ model: RescheduleAppointment, required: false }],
       order: [["bookingDate", "ASC"]],
     });
 
@@ -828,8 +913,13 @@ async function sendUpcomingAppointments(to) {
     }
 
     let message = "*Your Upcoming Appointments:*\n\n";
-    upcomingAppointments.forEach((apt, index) => {
-      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service} \nstatus: ${apt.status}\n\n`;
+    upcomingAppointments.forEach((apt) => {
+      const rescheduled = apt.reschedule_appointment;
+      const date = rescheduled ? rescheduled.rescheduledDate : apt.bookingDate;
+      const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
+      const status = rescheduled ? "rescheduled" : apt.status;
+
+      message += `📅 *${date}* at *${time}* 🩺 ${apt.service} Status: ${status}`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -852,6 +942,7 @@ async function sendPastAppointments(to) {
           { status: "cancelled" },
         ],
       },
+      include: [{ model: RescheduleAppointment, required: false }],
       order: [["bookingDate", "DESC"]],
     });
 
@@ -861,8 +952,19 @@ async function sendPastAppointments(to) {
     }
 
     let message = "*Your Past Appointments:*\n\n";
-    pastAppointments.forEach((apt, index) => {
-      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service} \nstatus: ${apt.status}\n\n`;
+    pastAppointments.forEach((apt) => {
+      const rescheduled = apt.reschedule_appointment;
+      const originalDate = apt.bookingDate;
+      const originalTime = apt.bookingTime;
+      const rescheduledDate = rescheduled ? rescheduled.rescheduledDate : null;
+      const rescheduledTime = rescheduled ? rescheduled.rescheduledTime : null;
+      const status = rescheduled ? "Rescheduled" : apt.status;
+
+      message += `📅 *Original:* ${originalDate} at ${originalTime}`;
+      if (rescheduledDate && rescheduledTime) {
+        message += `🔄 *Rescheduled:* ${rescheduledDate} at ${rescheduledTime}`;
+      }
+      message += `🩺 ${apt.service} Status: ${status}`;
     });
 
     await sendWhatsAppMessage(to, message);

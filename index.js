@@ -804,7 +804,7 @@ async function sendCancelRescheduleOptions(to) {
           type: "text",
           text: "Cancel or Reschedule Appointment",
         },
-        body: "Select an appointment from the list below:", // Ensure body is a string
+        body: { text: "Select an appointment from the list below:" }, // Ensure body is a JSON object
         action: {
           button: "View Appointments",
           sections: sections,

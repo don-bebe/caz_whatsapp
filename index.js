@@ -213,6 +213,58 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
+      if (
+        buttonReply === "cancel_appointment" &&
+        userContext[sender]?.mode === "can_res"
+      ) {
+        const transaction = await db.transaction();
+        const { appointmentUuid } = userContext[sender];
+        try {
+          const appointment = await Appointment.findByPk(appointmentUuid, {
+            transaction,
+          });
+
+          if (appointment) {
+            await appointment.update({ status: "cancelled" }, { transaction });
+            await transaction.commit();
+            await sendWhatsAppMessage(
+              sender,
+              "Your appointment has been successfully cancelled."
+            );
+            return res.sendStatus(200);
+          } else {
+            await transaction.rollback();
+            await sendWhatsAppMessage(sender, "❌ Appointment not found.");
+            return res.sendStatus(404);
+          }
+        } catch (error) {
+          await transaction.rollback();
+          console.error("Error creating appointment:", error.message);
+          await sendWhatsAppMessage(
+            sender,
+            "❌ There was an error with your appointment cancellation. Please try again later."
+          );
+          return res.sendStatus(500);
+        }
+      }
+
+      if (
+        buttonReply === "reschedule_appointment" &&
+        userContext[sender]?.mode === "can_res"
+      ) {
+        const userDate = message.text.body.trim();
+        const validation = isValidAppointmentDate(userDate);
+
+        if (!validation.valid) {
+          await sendWhatsAppMessage(sender, validation.message);
+          return res.sendStatus(200);
+        }
+        userContext[sender].date = userDate;
+        userContext[sender].mode = "time_select";
+        await sendTimeSelection(sender);
+        return res.sendStatus(200);
+      }
+
       if (listReply) {
         // Handle Making Appointment Steps
         if (listReply.startsWith("service_")) {
@@ -251,6 +303,18 @@ app.post("/whatsapp/webhook", async (req, res) => {
         if (listReply === "cancel_reschedule") {
           userContext[sender] = { mode: "cancel_reschedule" };
           await sendCancelRescheduleOptions(sender);
+          return res.sendStatus(200);
+        }
+
+        if (
+          listReply.startsWith("apt_") &&
+          userContext[sender]?.mode === "cancel_reschedule"
+        ) {
+          userContext[sender] = {
+            mode: "can_res",
+            appointmentUuid: listReply.replace("service_", ""),
+          };
+          await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }
       }
@@ -846,6 +910,39 @@ async function sendWhatsAppInteractiveMessage(to, message) {
       );
     }
   }
+}
+
+async function sendCancelRescheduleButton(to) {
+  const { appointmentUuid } = userContext[to];
+  const interactiveMessage = {
+    recipient_type: "individual",
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: `You have selected the appointment on ${appointmentUuid}. Would you like to cancel or reschedule?`,
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: "cancel_appointment",
+              title: "❌ Cancel",
+            },
+          },
+          {
+            type: "reply",
+            reply: {
+              id: "reschedule_appointment",
+              title: "🔄 Reschedule",
+            },
+          },
+        ],
+      },
+    },
+  };
+  await sendWhatsAppInteractiveMessage(to, JSON.stringify(interactiveMessage));
 }
 
 app.listen(PORT, () => {

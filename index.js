@@ -284,6 +284,16 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
 
+        if (
+          userContext[sender]?.mode === "time_select" &&
+          listReply.startsWith("time_")
+        ) {
+          userContext[sender].rescheduledTime = listReply.replace("time_", "");
+          userContext[sender].mode = "confirm";
+          await sendConfirmationReschedule(sender);
+          return res.sendStatus(200);
+        }
+
         // Handle Manage Appointment options
         if (listReply === "upcoming_appointments") {
           userContext[sender] = { mode: "view_upcoming" };
@@ -343,6 +353,20 @@ app.post("/whatsapp/webhook", async (req, res) => {
       userContext[sender].fullName = message.text.body.trim();
       userContext[sender].phone = sender;
       await sendConfirmationForm(sender);
+      return res.sendStatus(200);
+    }
+
+    if (message.text?.body && userContext[sender]?.mode === "date") {
+      const userDate = message.text.body.trim();
+      const validation = isValidAppointmentDate(userDate);
+
+      if (!validation.valid) {
+        await sendWhatsAppMessage(sender, validation.message);
+        return res.sendStatus(200);
+      }
+      userContext[sender].rescheduledDate = userDate;
+      userContext[sender].mode = "time_select";
+      await sendTimeSelection(sender);
       return res.sendStatus(200);
     }
 
@@ -664,7 +688,7 @@ async function sendConfirmationForm(to) {
     interactive: {
       type: "button",
       body: {
-        text: `Please confirm your appointment details:\n\n- **Service**: ${service}\n- **Date**: ${date}\n- **Time**: ${time}\n- **Full Name**: ${fullName}`,
+        text: `Please confirm your appointment details:\n\n- *Service*: ${service}\n- *Date*: ${date}\n- *Time*: ${time}\n- *Full Name*: ${fullName}`,
       },
       action: {
         buttons: [
@@ -771,7 +795,7 @@ async function sendUpcomingAppointments(to) {
 
     let message = "*Your Upcoming Appointments:*\n\n";
     upcomingAppointments.forEach((apt, index) => {
-      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service}\n\n`;
+      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service} \nstatus: ${apt.status}\n\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -801,7 +825,7 @@ async function sendPastAppointments(to) {
 
     let message = "*Your Past Appointments:*\n\n";
     pastAppointments.forEach((apt, index) => {
-      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service}\n\n`;
+      message += `📅 *${apt.bookingDate}* at *${apt.bookingTime}* \n🩺 ${apt.service} \nstatus: ${apt.status}\n\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -939,6 +963,55 @@ async function sendCancelRescheduleButton(to) {
     },
   };
   await sendWhatsAppInteractiveMessage(to, JSON.stringify(interactiveMessage));
+}
+
+async function sendConfirmationReschedule(to) {
+  const { rescheduledDate, rescheduledTime } = userContext[to];
+
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: `Please confirm your appointment reschedule:\n\n- *Date*: ${rescheduledDate}\n- *Time*: ${rescheduledTime}`,
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: "confirm_reschedule",
+              title: "✅ Yes",
+            },
+          },
+          {
+            type: "reply",
+            reply: {
+              id: "reject_reschedule",
+              title: "❌ No",
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Confirmation form sent with buttons:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
 }
 
 app.listen(PORT, () => {

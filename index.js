@@ -303,14 +303,14 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
 
-        //Handle rescheduling appointment. Step 2 - time selection and preview
+        //Handle rescheduling appointment. Step 2 - time selection
         if (
           userContext[sender]?.mode === "time_select" &&
           listReply.startsWith("time_")
         ) {
           userContext[sender].rescheduledTime = listReply.replace("time_", "");
-          userContext[sender].mode = "confirm";
-          await sendConfirmationReschedule(sender);
+          userContext[sender].mode = "reschedule_why";
+          await reschedulingReason(sender);
           return res.sendStatus(200);
         }
 
@@ -393,6 +393,13 @@ app.post("/whatsapp/webhook", async (req, res) => {
       userContext[sender].rescheduledDate = userDate;
       userContext[sender].mode = "time_select";
       await sendTimeSelection(sender);
+      return res.sendStatus(200);
+    }
+
+    //handle rescheduling appointment. Step 3 reason of rescheduling and preview
+    if (message.text?.body && userContext[sender]?.mode === "reschedule_why") {
+      userContext[sender].reason = message.text.body.trim();
+      await sendConfirmationReschedule(sender);
       return res.sendStatus(200);
     }
 
@@ -842,7 +849,7 @@ async function sendPastAppointments(to) {
         phone: to,
         [Op.or]: [
           { bookingDate: { [Op.lt]: new Date() } },
-          { status: "cancelled" }, 
+          { status: "cancelled" },
         ],
       },
       order: [["bookingDate", "DESC"]],
@@ -1039,6 +1046,32 @@ async function sendConfirmationReschedule(to) {
       },
     });
     console.log("Confirmation form sent with buttons:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
+  }
+}
+
+async function reschedulingReason(to) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "text",
+    text: {
+      body: "*Why do you want to reschedule your appointment?*",
+    },
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    console.log("Full name request sent:", response.data);
   } catch (error) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }

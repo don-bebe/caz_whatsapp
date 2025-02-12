@@ -213,51 +213,52 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
-      if (buttonReply === "cancel_appointment" && userContext[sender]?.mode === "can_res") {
+      if (
+        buttonReply === "cancel_appointment" &&
+        userContext[sender]?.mode === "can_res"
+      ) {
         const transaction = await db.transaction();
         const { appointmentUuid } = userContext[sender];
         try {
-          const appointment = await Appointment.findByPk(appointmentUuid, { transaction });
-      
+          const appointment = await Appointment.findByPk(appointmentUuid, {
+            transaction,
+          });
+
           if (!appointment) {
             // Appointment not found
             await transaction.rollback();
             await sendWhatsAppMessage(sender, "❌ Appointment not found.");
             return res.sendStatus(404);
           }
-      
+
           await appointment.update({ status: "cancelled" }, { transaction });
-      
+
           await transaction.commit();
-      
-          await sendWhatsAppMessage(sender, "✅ Your appointment has been successfully cancelled.");
+
+          await sendWhatsAppMessage(
+            sender,
+            "✅ Your appointment has been successfully cancelled."
+          );
           return res.sendStatus(200);
-      
         } catch (error) {
           await transaction.rollback();
           console.error("Error cancelling appointment:", error.message);
-      
+
           // Send an error message to the user
-          await sendWhatsAppMessage(sender, "❌ There was an error with your appointment cancellation. Please try again later.");
+          await sendWhatsAppMessage(
+            sender,
+            "❌ There was an error with your appointment cancellation. Please try again later."
+          );
           return res.sendStatus(500);
         }
       }
-      
 
       if (
         buttonReply === "reschedule_appointment" &&
         userContext[sender]?.mode === "can_res"
       ) {
-        const userDate = message.text.body.trim();
-        const validation = isValidAppointmentDate(userDate);
-
-        if (!validation.valid) {
-          await sendWhatsAppMessage(sender, validation.message);
-          return res.sendStatus(200);
-        }
-        userContext[sender].date = userDate;
-        userContext[sender].mode = "time_select";
-        await sendTimeSelection(sender);
+        userContext[sender] = { mode: "date" };
+        await requestDateInput(sender);
         return res.sendStatus(200);
       }
 

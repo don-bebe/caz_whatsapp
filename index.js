@@ -774,8 +774,8 @@ async function sendCancelRescheduleOptions(to) {
     let message = "*Select an appointment to cancel or reschedule:*\n\n";
     upcomingAppointments.forEach((apt, index) => {
       message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
-        apt.bookingTimeTitle
-      }*\n🩺 ${apt.serviceTitle}\n\n`;
+        apt.bookingTime
+      }*\n🩺 ${apt.service}\n\n`;
     });
 
     await sendWhatsAppMessage(

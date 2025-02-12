@@ -395,13 +395,26 @@ async function sendWhatsAppList(to) {
 async function sendWhatsAppMessage(to, message) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
-  const data = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to,
-    type: "text",
-    text: { body: message },
-  };
+  let data;
+
+  if (typeof message === "string") {
+    // Handle standard text messages
+    data = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "text",
+      text: { body: message },
+    };
+  } else {
+    // Handle interactive messages
+    data = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      ...message, // Spread the interactive message object directly
+    };
+  }
 
   try {
     const response = await axios.post(url, data, {
@@ -415,6 +428,7 @@ async function sendWhatsAppMessage(to, message) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
 }
+
 
 async function sendServiceOptions(to) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;

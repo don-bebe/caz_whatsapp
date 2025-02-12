@@ -753,6 +753,44 @@ async function sendPastAppointments(to) {
   }
 }
 
+// async function sendCancelRescheduleOptions(to) {
+//   try {
+//     const upcomingAppointments = await Appointment.findAll({
+//       where: {
+//         phone: to,
+//         bookingDate: { [Op.gte]: new Date() }, // Future dates only
+//       },
+//       order: [["bookingDate", "ASC"]],
+//     });
+
+//     if (upcomingAppointments.length === 0) {
+//       await sendWhatsAppMessage(
+//         to,
+//         "🚫 You have no upcoming appointments to cancel or reschedule."
+//       );
+//       return;
+//     }
+
+//     let message = "*Select an appointment to cancel or reschedule:*\n\n";
+//     upcomingAppointments.forEach((apt, index) => {
+//       message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
+//         apt.bookingTime
+//       }*\n🩺 ${apt.service}\n\n`;
+//     });
+
+//     await sendWhatsAppMessage(
+//       to,
+//       message + "Reply with the number of the appointment."
+//     );
+//   } catch (error) {
+//     console.error("Error fetching appointments:", error.message);
+//     await sendWhatsAppMessage(
+//       to,
+//       "❌ Unable to fetch appointments. Please try again later."
+//     );
+//   }
+// }
+
 async function sendCancelRescheduleOptions(to) {
   try {
     const upcomingAppointments = await Appointment.findAll({
@@ -771,16 +809,35 @@ async function sendCancelRescheduleOptions(to) {
       return;
     }
 
-    let message = "*Select an appointment to cancel or reschedule:*\n\n";
-    upcomingAppointments.forEach((apt, index) => {
-      message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
-        apt.bookingTime
-      }*\n🩺 ${apt.service}\n\n`;
-    });
+    const sections = [
+      {
+        title: "Upcoming Appointments",
+        rows: upcomingAppointments.map((apt, index) => ({
+          id: `apt_${apt.uuid}`,
+          title: `📅 ${apt.bookingDate} at ${apt.bookingTime}`,
+          description: `🩺 ${apt.service}`,
+        })),
+      },
+    ];
 
-    await sendWhatsAppMessage(
+    const interactiveMessage = {
+      recipient_type: "individual",
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: {
+          text: "*Select an appointment to cancel or reschedule:*",
+        },
+        action: {
+          button: "View Appointments",
+          sections,
+        },
+      },
+    };
+
+    await sendWhatsAppInteractiveMessage(
       to,
-      message + "Reply with the number of the appointment."
+      JSON.stringify(interactiveMessage)
     );
   } catch (error) {
     console.error("Error fetching appointments:", error.message);
@@ -788,6 +845,31 @@ async function sendCancelRescheduleOptions(to) {
       to,
       "❌ Unable to fetch appointments. Please try again later."
     );
+  }
+}
+
+async function sendWhatsAppInteractiveMessage(to, message) {
+  const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
+
+  const data = {
+    messaging_product: "whatsapp",
+    to,
+    ...JSON.parse(message),
+  };
+
+  try {
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_CLOUD_ACCESS_TOKEN}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(data.error.message || "Failed to send message");
+    }
+    console.log("WhatsApp message sent successfully:", response.data);
+  } catch (error) {
+    console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
 }
 

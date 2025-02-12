@@ -395,26 +395,13 @@ async function sendWhatsAppList(to) {
 async function sendWhatsAppMessage(to, message) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
-  let data;
-
-  if (typeof message === "string") {
-    // Handle standard text messages
-    data = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to,
-      type: "text",
-      text: { body: message },
-    };
-  } else {
-    // Handle interactive messages
-    data = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to,
-      ...message, // Spread the interactive message object directly
-    };
-  }
+  const data = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "text",
+    text: { body: message },
+  };
 
   try {
     const response = await axios.post(url, data, {
@@ -428,7 +415,6 @@ async function sendWhatsAppMessage(to, message) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
 }
-
 
 async function sendServiceOptions(to) {
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
@@ -772,7 +758,7 @@ async function sendCancelRescheduleOptions(to) {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() },
+        bookingDate: { [Op.gte]: new Date() }, // Future dates only
       },
       order: [["bookingDate", "ASC"]],
     });
@@ -785,34 +771,17 @@ async function sendCancelRescheduleOptions(to) {
       return;
     }
 
-    const sections = [
-      {
-        title: "Your Upcoming Appointments",
-        rows: upcomingAppointments.map((apt) => ({
-          id: `apt_${apt.uuid}`,
-          title: `📅 ${apt.bookingDate} at ${apt.bookingTime}`,
-          description: `🩺 ${apt.service}`,
-        })),
-      },
-    ];
+    let message = "*Select an appointment to cancel or reschedule:*\n\n";
+    upcomingAppointments.forEach((apt, index) => {
+      message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
+        apt.bookingTime
+      }*\n🩺 ${apt.service}\n\n`;
+    });
 
-    const interactiveMessage = {
-      type: "interactive",
-      interactive: {
-        type: "list",
-        header: {
-          type: "text",
-          text: "Cancel or Reschedule Appointment",
-        },
-        body: { text: "Select an appointment from the list below:" }, // Ensure body is a JSON object
-        action: {
-          button: "View Appointments",
-          sections: sections,
-        },
-      },
-    };
-
-    await sendWhatsAppMessage(to, interactiveMessage);
+    await sendWhatsAppMessage(
+      to,
+      message + "Reply with the number of the appointment."
+    );
   } catch (error) {
     console.error("Error fetching appointments:", error.message);
     await sendWhatsAppMessage(
@@ -821,7 +790,6 @@ async function sendCancelRescheduleOptions(to) {
     );
   }
 }
-
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

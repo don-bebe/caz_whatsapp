@@ -774,7 +774,7 @@ async function sendCancelRescheduleOptions(to) {
     const sections = [
       {
         title: "Your Upcoming Appointments",
-        rows: upcomingAppointments.map((apt, index) => ({
+        rows: upcomingAppointments.map((apt) => ({
           id: `apt_${apt.uuid}`,
           title: `📅 ${apt.bookingDate} at ${apt.bookingTime}`,
           description: `🩺 ${apt.service}`,
@@ -790,9 +790,7 @@ async function sendCancelRescheduleOptions(to) {
           type: "text",
           text: "Cancel or Reschedule Appointment",
         },
-        body: {
-          text: "Select an appointment from the list below:",
-        },
+        body: "Select an appointment from the list below:", // Ensure body is a string
         action: {
           button: "View Appointments",
           sections: sections,
@@ -809,6 +807,7 @@ async function sendCancelRescheduleOptions(to) {
     );
   }
 }
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

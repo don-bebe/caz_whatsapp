@@ -753,50 +753,12 @@ async function sendPastAppointments(to) {
   }
 }
 
-// async function sendCancelRescheduleOptions(to) {
-//   try {
-//     const upcomingAppointments = await Appointment.findAll({
-//       where: {
-//         phone: to,
-//         bookingDate: { [Op.gte]: new Date() }, // Future dates only
-//       },
-//       order: [["bookingDate", "ASC"]],
-//     });
-
-//     if (upcomingAppointments.length === 0) {
-//       await sendWhatsAppMessage(
-//         to,
-//         "🚫 You have no upcoming appointments to cancel or reschedule."
-//       );
-//       return;
-//     }
-
-//     let message = "*Select an appointment to cancel or reschedule:*\n\n";
-//     upcomingAppointments.forEach((apt, index) => {
-//       message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
-//         apt.bookingTime
-//       }*\n🩺 ${apt.service}\n\n`;
-//     });
-
-//     await sendWhatsAppMessage(
-//       to,
-//       message + "Reply with the number of the appointment."
-//     );
-//   } catch (error) {
-//     console.error("Error fetching appointments:", error.message);
-//     await sendWhatsAppMessage(
-//       to,
-//       "❌ Unable to fetch appointments. Please try again later."
-//     );
-//   }
-// }
-
 async function sendCancelRescheduleOptions(to) {
   try {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() }, // Future dates only
+        bookingDate: { [Op.gte]: new Date() }, 
       },
       order: [["bookingDate", "ASC"]],
     });
@@ -866,13 +828,18 @@ async function sendWhatsAppInteractiveMessage(to, message) {
       },
     });
     if (!response.ok) {
-      throw new Error(data.error.message || "Failed to send message");
+      throw new Error(data.error?.message || "Failed to send message");
     }
     console.log("WhatsApp message sent successfully:", response.data);
   } catch (error) {
-    console.error("WhatsApp API Error:", error.response?.data || error.message);
+    if (error.response) {
+      console.error("WhatsApp API Error:", error.response.data || error.message);
+    } else {
+      console.error("WhatsApp API Error: No response data available", error.message);
+    }
   }
 }
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

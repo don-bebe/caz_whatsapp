@@ -854,7 +854,8 @@ async function sendWhatsAppInteractiveMessage(to, message) {
   const data = {
     messaging_product: "whatsapp",
     to,
-    ...JSON.parse(message),
+    type: "interactive",
+    interactive: JSON.parse(message).interactive,
   };
 
   try {

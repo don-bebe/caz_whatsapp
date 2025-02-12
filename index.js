@@ -104,6 +104,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       const fuzzyMatch = bestMatch.rating > 0.7;
 
       if (exactMatch || fuzzyMatch) {
+        //send menu
         await sendWhatsAppList(sender);
         return res.sendStatus(200);
       }
@@ -137,17 +138,20 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
+      // Handle Making Appointment Final: save details to database
       if (buttonReply === "confirm_appointment") {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        //check if user have an existing appointment that is either pending or approved
         const existingAppointment = await Appointment.findOne({
           where: {
             phone: sender,
-            status: "pending",
+            status: "pending" || "approved",
           },
         });
 
+        //check if made an appointment today
         const todayAppointment = await Appointment.findOne({
           where: {
             phone: sender,
@@ -176,6 +180,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         const currentContext = userContext[sender];
         const transaction = await db.transaction();
         try {
+          //create new appointment to database
           await Appointment.create(
             {
               fullName: currentContext.fullName,
@@ -204,6 +209,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
       }
 
+      //Handle Reject appointment and not save to database
       if (buttonReply === "reject_appointment") {
         await sendWhatsAppMessage(
           sender,
@@ -213,6 +219,17 @@ app.post("/whatsapp/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
+      //Handle cancellation of rescheduling appointment process
+      if (buttonReply === "reject_reschedule") {
+        await sendWhatsAppMessage(
+          sender,
+          "You have cancelled the rescheduling of your appointment"
+        );
+        await sendWhatsAppList(sender);
+        return res.sendStatus(200);
+      }
+
+      //cancel an upcoming appointment and change it status to cancel in database
       if (
         buttonReply === "cancel_appointment" &&
         userContext[sender]?.mode === "can_res"
@@ -253,6 +270,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
       }
 
+      //handle rescheduling appointment. Step 1 re-entering of date
       if (
         buttonReply === "reschedule_appointment" &&
         userContext[sender]?.mode === "can_res"
@@ -263,7 +281,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
 
       if (listReply) {
-        // Handle Making Appointment Steps
+        // Handle Making Appointment Steps 1: service selection
         if (listReply.startsWith("service_")) {
           userContext[sender] = {
             mode: "date_input",
@@ -274,6 +292,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
 
+        // Handle Making Appointment Steps 3: time selection
         if (
           userContext[sender]?.mode === "time_selection" &&
           listReply.startsWith("time_")
@@ -284,6 +303,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
 
+        //Handle rescheduling appointment. Step 2 - time selection and preview
         if (
           userContext[sender]?.mode === "time_select" &&
           listReply.startsWith("time_")
@@ -294,25 +314,28 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(200);
         }
 
-        // Handle Manage Appointment options
+        // Handle Manage Appointment options: upcoming
         if (listReply === "upcoming_appointments") {
           userContext[sender] = { mode: "view_upcoming" };
           await sendUpcomingAppointments(sender);
           return res.sendStatus(200);
         }
 
+        // Handle Manage Appointment options: past
         if (listReply === "past_appointments") {
           userContext[sender] = { mode: "view_past" };
           await sendPastAppointments(sender);
           return res.sendStatus(200);
         }
 
+        // Handle Manage Appointment options: cancel/reschedule
         if (listReply === "cancel_reschedule") {
           userContext[sender] = { mode: "cancel_reschedule" };
           await sendCancelRescheduleOptions(sender);
           return res.sendStatus(200);
         }
 
+        // Handle Manage Appointment options: selecting appointment to cancel or reschedule
         if (
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
@@ -327,6 +350,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
     }
 
+    // Handle Making Appointment Steps 2: date selection
     if (
       message.text?.body &&
       userContext[sender]?.mode === "date_input" &&
@@ -345,6 +369,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // Handle Making Appointment Steps 4: name input and preview
     if (
       message.text?.body &&
       !userContext[sender]?.fullName &&
@@ -356,6 +381,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
+    //handle rescheduling appointment. Step 1 validation of reschedule date and providing time selection option
     if (message.text?.body && userContext[sender]?.mode === "date") {
       const userDate = message.text.body.trim();
       const validation = isValidAppointmentDate(userDate);

@@ -758,7 +758,7 @@ async function sendCancelRescheduleOptions(to) {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() }, // Future dates only
+        bookingDate: { [Op.gte]: new Date() },
       },
       order: [["bookingDate", "ASC"]],
     });
@@ -771,17 +771,36 @@ async function sendCancelRescheduleOptions(to) {
       return;
     }
 
-    let message = "*Select an appointment to cancel or reschedule:*\n\n";
-    upcomingAppointments.forEach((apt, index) => {
-      message += `${index + 1}. 📅 *${apt.bookingDate}* at *${
-        apt.bookingTime
-      }*\n🩺 ${apt.service}\n\n`;
-    });
+    const sections = [
+      {
+        title: "Your Upcoming Appointments",
+        rows: upcomingAppointments.map((apt, index) => ({
+          id: `apt_${apt.uuid}`,
+          title: `📅 ${apt.bookingDate} at ${apt.bookingTime}`,
+          description: `🩺 ${apt.service}`,
+        })),
+      },
+    ];
 
-    await sendWhatsAppMessage(
-      to,
-      message + "Reply with the number of the appointment."
-    );
+    const interactiveMessage = {
+      type: "interactive",
+      interactive: {
+        type: "list",
+        header: {
+          type: "text",
+          text: "Cancel or Reschedule Appointment",
+        },
+        body: {
+          text: "Select an appointment from the list below:",
+        },
+        action: {
+          button: "View Appointments",
+          sections: sections,
+        },
+      },
+    };
+
+    await sendWhatsAppMessage(to, interactiveMessage);
   } catch (error) {
     console.error("Error fetching appointments:", error.message);
     await sendWhatsAppMessage(

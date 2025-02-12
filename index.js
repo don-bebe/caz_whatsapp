@@ -840,7 +840,10 @@ async function sendPastAppointments(to) {
     const pastAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.lt]: new Date() }, // Past dates
+        [Op.or]: [
+          { bookingDate: { [Op.lt]: new Date() } },
+          { status: "cancelled" }, 
+        ],
       },
       order: [["bookingDate", "DESC"]],
     });

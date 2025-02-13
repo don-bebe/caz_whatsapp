@@ -459,6 +459,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             mode: "can_res",
             appointmentUuid: appointmentUuid, // Ensure it's stored properly
           };
+          await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }
       }

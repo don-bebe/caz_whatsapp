@@ -247,21 +247,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(400);
         }
 
-        if (!currentContext.appointmentUuid) {
-          console.log(`❌ appointmentUuid is missing for sender: ${sender}`);
-          if (!userContext[sender].lastErrorMessageSent || 
-            Date.now() - userContext[sender].lastErrorMessageSent > 2000) {  // 2-second delay
-            await sendWhatsAppMessage(sender, "⚠️ Error: Appointment ID is missing.");
-            userContext[sender].lastErrorMessageSent = Date.now(); // Save timestamp
-        }
-          return res.sendStatus(400);
-        }
-
         const transaction = await db.transaction();
         try {
           const existingReschedule = await RescheduleAppointment.findOne({
             where: {
-              appointment_uuid: currentContext.appointmentUuid,
+              appointment_uuid: currentContext.appointment,
             },
             transaction,
           });
@@ -277,7 +267,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
           const response = await RescheduleAppointment.create(
             {
-              appointment_uuid: currentContext.appointmentUuid,
+              appointment_uuid: currentContext.appointment,
               rescheduledDate: currentContext.rescheduledDate,
               rescheduledTime: currentContext.rescheduledTime,
               message: currentContext.reason,
@@ -297,7 +287,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           const [updatedRows] = await Appointment.update(
             { status: "rescheduled" },
             {
-              where: { uuid: currentContext.appointmentUuid },
+              where: { uuid: currentContext.appointment },
               transaction,
             }
           );
@@ -308,7 +298,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
           await AppointmentHistory.create(
             {
-              appointment_uuid: currentContext.appointmentUuid,
+              appointment_uuid: currentContext.appointment,
               status: "rescheduled",
               reason: currentContext.reason,
             },
@@ -452,20 +442,15 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
-          const appointmentUuid = listReply.replace("apt_", "");
-          if (!appointmentUuid) {
+          userContext[sender].appointment = listReply.replace("apt_", "");
+          userContext[sender].mode = "can_res";
+          if (!userContext[sender].appointment) {
             await sendWhatsAppMessage(
               sender,
               "⚠️ Error: Invalid appointment selected."
             );
             return res.sendStatus(400);
           }
-
-          userContext[sender] = {
-            ...userContext[sender], 
-            mode: "can_res",
-            appointmentUuid: appointmentUuid,
-          };
           await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }

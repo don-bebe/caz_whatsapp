@@ -442,8 +442,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
-          const parts = listReply.split("apt_");
-          const appointmentId = parts.length > 1 ? parts[1].trim() : null;
+          const appointmentId = listReply.replace("apt_", "").trim();
           if (!appointmentId) {
             await sendWhatsAppMessage(
               sender,
@@ -1098,6 +1097,9 @@ async function sendWhatsAppInteractiveMessage(to, message) {
 }
 
 async function sendCancelRescheduleButton(to) {
+  userContext[sender] = {
+    appointment: userContext[sender].appointment,
+  };
   const interactiveMessage = {
     recipient_type: "individual",
     type: "interactive",

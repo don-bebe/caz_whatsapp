@@ -235,10 +235,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
       if (buttonReply === "confirm_reschedule") {
         const currentContext = userContext[sender];
 
-        console.log(
-          `🔍 Checking currentContext for sender ${sender}:`,
-          currentContext
-        );
         if (!currentContext) {
           await sendWhatsAppMessage(
             sender,
@@ -309,7 +305,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
             sender,
             `✅ Your appointment has been rescheduled for ${currentContext.rescheduledDate} at ${currentContext.rescheduledTime}.\n *Please wait for approval*.`
           );
-          await sendWhatsAppList(sender);
           return res.sendStatus(200);
         } catch (error) {
           if (transaction) await transaction.rollback();
@@ -1102,7 +1097,7 @@ async function sendCancelRescheduleButton(to) {
     interactive: {
       type: "button",
       body: {
-        text: `You have selected the appointment id. Would you like to cancel or reschedule?`,
+        text: `You have selected an appointment. Would you like to cancel or reschedule?`,
       },
       action: {
         buttons: [

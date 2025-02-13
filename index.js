@@ -507,6 +507,10 @@ app.post("/whatsapp/webhook", async (req, res) => {
     //handle rescheduling appointment. Step 3 reason of rescheduling and preview
     if (message.text?.body && userContext[sender]?.mode === "reschedule_why") {
       userContext[sender].reason = message.text.body.trim();
+      console.log(
+        `🔍 Checking currentContext for sender ${sender}:`,
+        currentContext
+      );
       await sendConfirmationReschedule(sender);
       return res.sendStatus(200);
     }

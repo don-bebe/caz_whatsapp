@@ -217,7 +217,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
           sender,
           "You have cancelled the appointment booking"
         );
-        await sendWhatsAppList(sender);
         return res.sendStatus(200);
       }
 
@@ -227,21 +226,12 @@ app.post("/whatsapp/webhook", async (req, res) => {
           sender,
           "You have cancelled the rescheduling of your appointment"
         );
-        await sendWhatsAppList(sender);
         return res.sendStatus(200);
       }
 
       //Handle confirm of rescheduling appointment process
       if (buttonReply === "confirm_reschedule") {
         const currentContext = userContext[sender];
-
-        if (!currentContext) {
-          await sendWhatsAppMessage(
-            sender,
-            "⚠️ Error: No active appointment found."
-          );
-          return res.sendStatus(400);
-        }
 
         const transaction = await db.transaction();
         try {

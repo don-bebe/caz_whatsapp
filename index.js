@@ -442,16 +442,16 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
-          userContext[sender].appointment = listReply.replace("apt_", "");
-          userContext[sender].mode = "can_res";
-          if (!userContext[sender].appointment) {
+          const appointmentId = listReply.replace("apt_", "").trim();
+          if (!appointmentId) {
             await sendWhatsAppMessage(
               sender,
               "⚠️ Error: Invalid appointment selected."
             );
             return res.sendStatus(400);
           }
-          await sendCancelRescheduleButton(sender);
+          userContext[sender].appointment = appointmentId;
+          userContext[sender].mode = "can_res";
           return res.sendStatus(200);
         }
       }
@@ -497,13 +497,8 @@ app.post("/whatsapp/webhook", async (req, res) => {
         await sendWhatsAppMessage(sender, validation.message);
         return res.sendStatus(200);
       }
-      userContext[sender] = {
-        ...userContext[sender],
-        rescheduledDate: userDate,
-        mode: "time_select",
-      };
-      // userContext[sender].rescheduledDate = userDate;
-      // userContext[sender].mode = "time_select";
+      userContext[sender].rescheduledDate = userDate;
+      userContext[sender].mode = "time_select";
       await sendTimeSelection(sender);
       return res.sendStatus(200);
     }

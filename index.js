@@ -233,9 +233,12 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
       //Handle confirm of rescheduling appointment process
       if (buttonReply === "confirm_reschedule") {
-        const transaction = await db.transaction();
         const currentContext = userContext[sender];
 
+        console.log(
+          `🔍 Checking currentContext for sender ${sender}:`,
+          currentContext
+        );
         if (!currentContext) {
           await sendWhatsAppMessage(
             sender,
@@ -245,6 +248,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         }
 
         if (!currentContext.appointmentUuid) {
+          console.log(`❌ appointmentUuid is missing for sender: ${sender}`);
           await sendWhatsAppMessage(
             sender,
             "⚠️ Error: Appointment ID is missing."
@@ -252,6 +256,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
           return res.sendStatus(400);
         }
 
+        const transaction = await db.transaction();
         try {
           const existingReschedule = await RescheduleAppointment.findOne({
             where: {
@@ -446,11 +451,8 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
-          console.log(`✅ List Reply Received: ${listReply}`);
-          console.log(`✅ Current User Context:`, userContext[sender]);
           const appointmentUuid = listReply.replace("apt_", "");
           if (!appointmentUuid) {
-            console.log("❌ Error: Extracted appointmentUuid is invalid.");
             await sendWhatsAppMessage(
               sender,
               "⚠️ Error: Invalid appointment selected."
@@ -458,11 +460,8 @@ app.post("/whatsapp/webhook", async (req, res) => {
             return res.sendStatus(400);
           }
 
-          userContext[sender] = {
-            mode: "can_res",
-            appointmentUuid: appointmentUuid,
-          };
-          console.log(`✅ Updated User Context:`, userContext[sender]);
+          userContext[sender].appointmentUuid = appointmentUuid;
+          userContext[sender].mode = "can_res";
           await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }

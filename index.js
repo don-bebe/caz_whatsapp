@@ -446,8 +446,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
+          console.log(`✅ List Reply Received: ${listReply}`);
+          console.log(`✅ Current User Context:`, userContext[sender]);
           const appointmentUuid = listReply.replace("apt_", "");
           if (!appointmentUuid) {
+            console.log("❌ Error: Extracted appointmentUuid is invalid.");
             await sendWhatsAppMessage(
               sender,
               "⚠️ Error: Invalid appointment selected."
@@ -457,8 +460,9 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
           userContext[sender] = {
             mode: "can_res",
-            appointmentUuid: appointmentUuid, // Ensure it's stored properly
+            appointmentUuid: appointmentUuid,
           };
+          console.log(`✅ Updated User Context:`, userContext[sender]);
           await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }

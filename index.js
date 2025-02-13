@@ -1101,8 +1101,8 @@ async function sendWhatsAppInteractiveMessage(to, message) {
 }
 
 async function sendCancelRescheduleButton(to) {
-  userContext[sender] = {
-    appointment: userContext[sender].appointment,
+  userContext[to] = {
+    appointment: userContext[to].appointment,
   };
   const interactiveMessage = {
     recipient_type: "individual",

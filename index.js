@@ -249,10 +249,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
         if (!currentContext.appointmentUuid) {
           console.log(`❌ appointmentUuid is missing for sender: ${sender}`);
-          await sendWhatsAppMessage(
-            sender,
-            "⚠️ Error: Appointment ID is missing."
-          );
+          if (!userContext[sender].lastErrorMessageSent || 
+            Date.now() - userContext[sender].lastErrorMessageSent > 2000) {  // 2-second delay
+            await sendWhatsAppMessage(sender, "⚠️ Error: Appointment ID is missing.");
+            userContext[sender].lastErrorMessageSent = Date.now(); // Save timestamp
+        }
           return res.sendStatus(400);
         }
 
@@ -460,8 +461,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
             return res.sendStatus(400);
           }
 
-          userContext[sender].appointmentUuid = appointmentUuid;
-          userContext[sender].mode = "can_res";
+          userContext[sender] = {
+            ...userContext[sender], 
+            mode: "can_res",
+            appointmentUuid: appointmentUuid,
+          };
           await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }

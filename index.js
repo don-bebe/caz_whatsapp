@@ -271,15 +271,17 @@ app.post("/whatsapp/webhook", async (req, res) => {
             return res.sendStatus(200);
           }
 
-          await Appointment.update(
+          const [updatedRows] = await Appointment.update(
+            { status: "rescheduled" },
             {
-              status: "rescheduled",
-              where: {
-                uuid: currentContext.appointmentUuid,
-              },
-            },
-            { transaction }
+              where: { uuid: currentContext.appointmentUuid },
+              transaction,
+            }
           );
+
+          if (updatedRows === 0) {
+            throw new Error("No appointment found to update.");
+          }
 
           await AppointmentHistory.create(
             {
@@ -299,6 +301,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
         } catch (error) {
           await transaction.rollback();
           console.error("Error creating appointment:", error.message);
+          console.log(error.stack);
           await sendWhatsAppMessage(
             sender,
             "❌ There was an error with your appointment rescheduling. Please try again later."

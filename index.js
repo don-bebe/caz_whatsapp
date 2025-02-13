@@ -235,6 +235,23 @@ app.post("/whatsapp/webhook", async (req, res) => {
       if (buttonReply === "confirm_reschedule") {
         const transaction = await db.transaction();
         const currentContext = userContext[sender];
+
+        if (!currentContext) {
+          await sendWhatsAppMessage(
+            sender,
+            "⚠️ Error: No active appointment found."
+          );
+          return res.sendStatus(400);
+        }
+
+        if (!currentContext.appointmentUuid) {
+          await sendWhatsAppMessage(
+            sender,
+            "⚠️ Error: Appointment ID is missing."
+          );
+          return res.sendStatus(400);
+        }
+
         try {
           const existingReschedule = await RescheduleAppointment.findOne({
             where: {
@@ -299,14 +316,16 @@ app.post("/whatsapp/webhook", async (req, res) => {
           await sendWhatsAppList(sender);
           return res.sendStatus(200);
         } catch (error) {
-          await transaction.rollback();
-          console.error("Error creating appointment:", error.message);
+          if (transaction) await transaction.rollback();
+          console.error("Error rescheduling appointment:", error.message);
           console.log(error.stack);
-          await sendWhatsAppMessage(
-            sender,
-            "❌ There was an error with your appointment rescheduling. Please try again later."
-          );
-          return res.sendStatus(500);
+          if (!res.headersSent) {
+            await sendWhatsAppMessage(
+              sender,
+              "❌ There was an error rescheduling your appointment. Please try again later."
+            );
+            return res.sendStatus(500);
+          }
         }
       }
 
@@ -427,11 +446,19 @@ app.post("/whatsapp/webhook", async (req, res) => {
           listReply.startsWith("apt_") &&
           userContext[sender]?.mode === "cancel_reschedule"
         ) {
+          const appointmentUuid = listReply.replace("apt_", "");
+          if (!appointmentUuid) {
+            await sendWhatsAppMessage(
+              sender,
+              "⚠️ Error: Invalid appointment selected."
+            );
+            return res.sendStatus(400);
+          }
+
           userContext[sender] = {
             mode: "can_res",
-            appointmentUuid: listReply.replace("apt_", ""),
+            appointmentUuid: appointmentUuid, // Ensure it's stored properly
           };
-          await sendCancelRescheduleButton(sender);
           return res.sendStatus(200);
         }
       }

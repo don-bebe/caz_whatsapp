@@ -232,7 +232,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
       //Handle confirm of rescheduling appointment process
       if (buttonReply === "confirm_reschedule") {
         const currentContext = userContext[sender];
-
+      
+        if (!currentContext || !currentContext.appointment) {
+          return res.sendStatus(400);
+        }
+      
         const transaction = await db.transaction();
         try {
           const existingReschedule = await RescheduleAppointment.findOne({
@@ -241,7 +245,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             },
             transaction,
           });
-
+      
           if (existingReschedule) {
             await transaction.rollback();
             await sendWhatsAppMessage(
@@ -250,7 +254,28 @@ app.post("/whatsapp/webhook", async (req, res) => {
             );
             return res.sendStatus(200);
           }
-
+      
+          // Ensure appointment is not already marked as rescheduled
+          const appointment = await Appointment.findOne({
+            where: { uuid: currentContext.appointment },
+            transaction,
+          });
+      
+          if (!appointment) {
+            await transaction.rollback();
+            await sendWhatsAppMessage(sender, `❌ Appointment not found.`);
+            return res.sendStatus(200);
+          }
+      
+          if (appointment.status === "rescheduled") {
+            await transaction.rollback();
+            await sendWhatsAppMessage(
+              sender,
+              `⚠️ Your appointment has already been rescheduled.`
+            );
+            return res.sendStatus(200);
+          }
+      
           const response = await RescheduleAppointment.create(
             {
               appointment_uuid: currentContext.appointment,
@@ -260,7 +285,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             },
             { transaction }
           );
-
+      
           if (!response) {
             await transaction.rollback();
             await sendWhatsAppMessage(
@@ -269,7 +294,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
             );
             return res.sendStatus(200);
           }
-
+      
           const [updatedRows] = await Appointment.update(
             { status: "rescheduled" },
             {
@@ -277,11 +302,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
               transaction,
             }
           );
-
+      
           if (updatedRows === 0) {
             throw new Error("No appointment found to update.");
           }
-
+      
           await AppointmentHistory.create(
             {
               appointment_uuid: currentContext.appointment,
@@ -290,26 +315,34 @@ app.post("/whatsapp/webhook", async (req, res) => {
             },
             { transaction }
           );
+      
           await transaction.commit();
+      
+          // Reset user context after successful transaction
+          delete userContext[sender];
+      
           await sendWhatsAppMessage(
             sender,
             `✅ Your appointment has been rescheduled for ${currentContext.rescheduledDate} at ${currentContext.rescheduledTime}.\n *Please wait for approval*.`
           );
+      
           return res.sendStatus(200);
         } catch (error) {
           if (transaction) await transaction.rollback();
           console.error("Error rescheduling appointment:", error.message);
           console.log(error.stack);
+      
           if (!res.headersSent) {
             await sendWhatsAppMessage(
               sender,
               "❌ There was an error rescheduling your appointment. Please try again later."
             );
-            return res.sendStatus(500);
           }
+      
+          return res.sendStatus(500);
         }
-      }
-
+      } 
+           
       //cancel an upcoming appointment and change it status to cancel in database
       if (
         buttonReply === "cancel_appointment" &&

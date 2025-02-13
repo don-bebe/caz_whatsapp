@@ -497,8 +497,13 @@ app.post("/whatsapp/webhook", async (req, res) => {
         await sendWhatsAppMessage(sender, validation.message);
         return res.sendStatus(200);
       }
-      userContext[sender].rescheduledDate = userDate;
-      userContext[sender].mode = "time_select";
+      userContext[sender] = {
+        ...userContext[sender],
+        rescheduledDate: userDate,
+        mode: "time_select",
+      };
+      // userContext[sender].rescheduledDate = userDate;
+      // userContext[sender].mode = "time_select";
       await sendTimeSelection(sender);
       return res.sendStatus(200);
     }

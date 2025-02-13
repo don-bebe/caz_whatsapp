@@ -378,6 +378,10 @@ app.post("/whatsapp/webhook", async (req, res) => {
         userContext[sender]?.mode === "can_res"
       ) {
         userContext[sender] = { mode: "date" };
+        console.log(
+          `🔍 Checking currentContext for sender ${sender}:`,
+          currentContext
+        );
         await requestDateInput(sender);
         return res.sendStatus(200);
       }
@@ -389,7 +393,6 @@ app.post("/whatsapp/webhook", async (req, res) => {
             mode: "date_input",
             service: listReply.replace("service_", ""),
           };
-
           await requestDateInput(sender);
           return res.sendStatus(200);
         }
@@ -500,6 +503,10 @@ app.post("/whatsapp/webhook", async (req, res) => {
       }
       userContext[sender].rescheduledDate = userDate;
       userContext[sender].mode = "time_select";
+      console.log(
+        `🔍 Checking currentContext for sender ${sender}:`,
+        currentContext
+      );
       await sendTimeSelection(sender);
       return res.sendStatus(200);
     }
@@ -1101,9 +1108,6 @@ async function sendWhatsAppInteractiveMessage(to, message) {
 }
 
 async function sendCancelRescheduleButton(to) {
-  userContext[to] = {
-    appointment: userContext[to].appointment,
-  };
   const interactiveMessage = {
     recipient_type: "individual",
     type: "interactive",

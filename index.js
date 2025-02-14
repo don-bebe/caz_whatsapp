@@ -979,9 +979,9 @@ async function sendUpcomingAppointments(to) {
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
       const status = rescheduled ? "rescheduled" : apt.status;
 
-      message += `📅 *${date.toLocaleDateString()}* at *${time}* 🩺 ${
+      message += `📅 *${date}* at *${time}* 🩺 ${
         apt.service
-      } Status: ${status}\n`;
+      } status: *${status}*\n`;
     });
 
     await sendWhatsAppMessage(to, message);

@@ -25,7 +25,7 @@ const StaffDetails = db.define(
         notEmpty: true,
       },
     },
-    phoneNumber: {
+    phone: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {

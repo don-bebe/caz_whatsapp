@@ -971,7 +971,7 @@ async function sendUpcomingAppointments(to) {
 
     let message = "*Your Upcoming Appointments:*\n\n";
     upcomingAppointments.forEach((apt) => {
-      const rescheduled = apt.reschedule_appointment;
+      const rescheduled = apt?.reschedule_appointment;
       const date = rescheduled ? rescheduled.rescheduledDate : apt.bookingDate;
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
       const status = rescheduled ? "rescheduled" : apt.status;

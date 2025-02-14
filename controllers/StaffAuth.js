@@ -78,6 +78,7 @@ const signInStaff = async (req, res) => {
     }
 
     req.session.userId = staff.uuid;
+    
     const name = staff.fullName;
     const phone = staff.phone;
 

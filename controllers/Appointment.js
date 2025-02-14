@@ -3,10 +3,17 @@ const { sendWhatsAppMessage } = require("../helpers/WhatsAppMessages");
 const Appointment = require("../models/Appointment");
 const { Op } = require("sequelize");
 const AppointmentHistory = require("../models/AppointmentHistory");
+const RescheduleAppointment = require("../models/RescheduleAppointment");
 
 const getAllAppointments = async (req, res) => {
   try {
-    const response = await Appointment.findAll();
+    const response = await Appointment.findAll({
+      include: [
+        {
+          model: RescheduleAppointment,
+        },
+      ],
+    });
 
     if (response && response.length > 0) {
       return res.status(200).json(response);
@@ -51,9 +58,6 @@ const approveAppointments = async (req, res) => {
       { transaction }
     );
 
-    await appointment.save({ transaction });
-    await transaction.commit();
-
     if (req.body.status === "approved") {
       await sendWhatsAppMessage(
         appointment.phone,
@@ -67,6 +71,9 @@ const approveAppointments = async (req, res) => {
         "We kindly request that your reschedule your appointment "
       );
     }
+
+    await appointment.save({ transaction });
+    await transaction.commit();
 
     return res
       .status(200)

@@ -3,28 +3,65 @@ const express = require("express");
 const axios = require("axios");
 const dialogflow = require("@google-cloud/dialogflow");
 const stringSimilarity = require("string-similarity");
+const session = require("express-session");
+const SequelizeStore = require("connect-session-sequelize")(session.Store);
+const bodyParser = require("body-parser");
+const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const moment = require("moment");
-const { Op, where } = require("sequelize");
+const { Op } = require("sequelize");
 const db = require("./config/dbconnection");
 const Appointment = require("./models/Appointment");
 const RescheduleAppointment = require("./models/RescheduleAppointment");
 const AppointmentHistory = require("./models/AppointmentHistory");
+const AppointRouter = require("./routes/application");
+const StaffRouter = require("./routes/staff");
 
 const app = express();
 const PORT = process.env.APP_PORT || 5000;
-
-app.use(express.json());
 
 db.sync()
   .then(() => console.log("Database connected and models synced"))
   .catch((err) => console.error("Database connection error:", err));
 
+app.set("trust proxy", 1);
+
+const store = new SequelizeStore({
+  db: db,
+});
+
+app.use(
+  session({
+    secret: process.env.SESS_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: store,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+      httpOnly: true,
+      maxAge: 3 * 60 * 60 * 1000,
+    },
+  })
+);
+
+const corsOptions = {
+  origin: process.env.CLIENT_URL,
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
+app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 const CREDENTIALS_PATH = path.join(__dirname, "dialogflow-credentials.json");
 const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
 
 const WELCOME_MESSAGES_PATH = path.join(__dirname, "welcome-messages.json");
+
 const welcomeMessages = JSON.parse(
   fs.readFileSync(WELCOME_MESSAGES_PATH, "utf-8")
 ).welcomeMessages;
@@ -145,11 +182,11 @@ app.post("/whatsapp/webhook", async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        //check if user have an existing appointment that is either pending or approved
+        //check if user have an existing appointment that is either pending
         const existingAppointment = await Appointment.findOne({
           where: {
             phone: sender,
-            status: "pending" || "approved",
+            status: "pending",
           },
         });
 
@@ -939,7 +976,7 @@ async function sendUpcomingAppointments(to) {
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
       const status = rescheduled ? "rescheduled" : apt.status;
 
-      message += `📅 *${date}* at *${time}* 🩺 ${apt.service} Status: ${status}`;
+      message += `📅 *${date}* at *${time}* 🩺 ${apt.service} Status: ${status}\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -984,7 +1021,7 @@ async function sendPastAppointments(to) {
       if (rescheduledDate && rescheduledTime) {
         message += `🔄 *Rescheduled:* ${rescheduledDate} at ${rescheduledTime}`;
       }
-      message += `🩺 ${apt.service} Status: ${status}`;
+      message += `🩺 ${apt.service} Status: ${status}\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -1198,6 +1235,9 @@ async function reschedulingReason(to) {
     console.error("WhatsApp API Error:", error.response?.data || error.message);
   }
 }
+
+app.use("/api/appoint", AppointRouter);
+app.use("/api/staff", StaffRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

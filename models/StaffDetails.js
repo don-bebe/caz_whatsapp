@@ -17,7 +17,7 @@ const StaffDetails = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    emailAddress: {
+    email: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {

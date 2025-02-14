@@ -961,7 +961,10 @@ async function sendUpcomingAppointments(to) {
         status: { [Op.ne]: "cancelled" },
       },
       include: [{ model: RescheduleAppointment, required: false }],
-      order: [["bookingDate", "ASC"]],
+      order: [
+        [RescheduleAppointment, "rescheduledDate", "ASC"],
+        ["bookingDate", "ASC"],
+      ],
     });
 
     if (upcomingAppointments.length === 0) {
@@ -976,7 +979,9 @@ async function sendUpcomingAppointments(to) {
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
       const status = rescheduled ? "rescheduled" : apt.status;
 
-      message += `📅 *${date}* at *${time}* 🩺 ${apt.service} Status: ${status}\n`;
+      message += `📅 *${date.toLocaleDateString()}* at *${time}* 🩺 ${
+        apt.service
+      } Status: ${status}\n`;
     });
 
     await sendWhatsAppMessage(to, message);

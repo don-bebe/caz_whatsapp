@@ -46,7 +46,7 @@ const approveAppointments = async (req, res) => {
       {
         appointment_uuid: appointment.uuid,
         status: req.body.status,
-        message: req.body.status,
+        reason: req.body.status,
       },
       { transaction }
     );

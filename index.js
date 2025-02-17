@@ -983,7 +983,7 @@ async function sendUpcomingAppointments(to) {
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
       const status = apt.status;
 
-      message += `📅 *${date}* at *${time}*\n🩺 ${apt.service} status: *${status}*\n`;
+      message += `📅 *${date}* at *${time}*\n🩺 ${apt.service} \nstatus: *${status}*\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -1006,7 +1006,15 @@ async function sendPastAppointments(to) {
           { status: "cancelled" },
         ],
       },
-      include: [{ model: RescheduleAppointment, required: false }],
+      include: [
+        {
+          model: RescheduleAppointment,
+          required: false,
+          where: {
+            rescheduledDate: { [Op.lt]: new Date() },
+          },
+        },
+      ],
       order: [["bookingDate", "DESC"]],
     });
 
@@ -1024,11 +1032,11 @@ async function sendPastAppointments(to) {
       const rescheduledTime = rescheduled ? rescheduled.rescheduledTime : null;
       const status = apt.status;
 
-      message += `📅 *Original:* ${originalDate} at ${originalTime}`;
+      message += `📅 *Original:* ${originalDate} at ${originalTime}\n`;
       if (rescheduledDate && rescheduledTime) {
-        message += `🔄 *Rescheduled:* ${rescheduledDate} at ${rescheduledTime}`;
+        message += `🔄 *Rescheduled:* ${rescheduledDate} at ${rescheduledTime}\n`;
       }
-      message += `\n🩺 ${apt.service} Status: ${status}\n`;
+      message += `🩺 ${apt.service}\n Status: ${status}\n\n`;
     });
 
     await sendWhatsAppMessage(to, message);

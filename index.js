@@ -957,31 +957,33 @@ async function sendUpcomingAppointments(to) {
     const upcomingAppointments = await Appointment.findAll({
       where: {
         phone: to,
-        bookingDate: { [Op.gte]: new Date() },
         status: { [Op.ne]: "cancelled" },
       },
       include: [{ model: RescheduleAppointment, required: false }],
-      order: [
-        [RescheduleAppointment, "rescheduledDate", "ASC"],
-        ["bookingDate", "ASC"],
-      ],
     });
 
-    if (upcomingAppointments.length === 0) {
+    const filteredAppointments = upcomingAppointments.filter((apt) => {
+      const today = new Date();
+      const rescheduledDate = apt?.reschedule_appointment?.rescheduledDate;
+      return (
+        (apt.bookingDate && new Date(apt.bookingDate) >= today) ||
+        (rescheduledDate && new Date(rescheduledDate) >= today)
+      );
+    });
+
+    if (filteredAppointments.length === 0) {
       await sendWhatsAppMessage(to, "🔔 You have no upcoming appointments.");
       return;
     }
 
     let message = "*Your Upcoming Appointments:*\n\n";
-    upcomingAppointments.forEach((apt) => {
+    filteredAppointments.forEach((apt) => {
       const rescheduled = apt?.reschedule_appointment;
       const date = rescheduled ? rescheduled.rescheduledDate : apt.bookingDate;
       const time = rescheduled ? rescheduled.rescheduledTime : apt.bookingTime;
-      const status = rescheduled ? "rescheduled" : apt.status;
+      const status = apt.status;
 
-      message += `📅 *${date}* at *${time}* 🩺 ${
-        apt.service
-      } status: *${status}*\n`;
+      message += `📅 *${date}* at *${time}*\n🩺 ${apt.service} status: *${status}*\n`;
     });
 
     await sendWhatsAppMessage(to, message);
@@ -1020,13 +1022,13 @@ async function sendPastAppointments(to) {
       const originalTime = apt.bookingTime;
       const rescheduledDate = rescheduled ? rescheduled.rescheduledDate : null;
       const rescheduledTime = rescheduled ? rescheduled.rescheduledTime : null;
-      const status = rescheduled ? "Rescheduled" : apt.status;
+      const status = apt.status;
 
       message += `📅 *Original:* ${originalDate} at ${originalTime}`;
       if (rescheduledDate && rescheduledTime) {
         message += `🔄 *Rescheduled:* ${rescheduledDate} at ${rescheduledTime}`;
       }
-      message += `🩺 ${apt.service} Status: ${status}\n`;
+      message += `\n🩺 ${apt.service} Status: ${status}\n`;
     });
 
     await sendWhatsAppMessage(to, message);

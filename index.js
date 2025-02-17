@@ -507,22 +507,7 @@ app.post("/whatsapp/webhook", async (req, res) => {
 
       const bookedAppointments = await Appointment.findAll({
         where: {
-          [Op.or]: [
-            {
-              [Op.and]: [
-                { bookingDate: userDate },
-                { "$reschedule_appointment.rescheduledDate$": null },
-              ],
-            },
-            {
-              [Op.and]: [
-                { bookingDate: userDate },
-                {
-                  "$reschedule_appointment.rescheduledDate$": { [Op.ne]: null },
-                },
-              ],
-            },
-          ],
+          bookingDate: userDate,
         },
         attributes: ["bookingTime"],
       });

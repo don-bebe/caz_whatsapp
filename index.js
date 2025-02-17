@@ -1002,7 +1002,16 @@ async function sendPastAppointments(to) {
       where: {
         phone: to,
         [Op.or]: [
-          { bookingDate: { [Op.lt]: new Date() } },
+          {
+            [Op.and]: [
+              { bookingDate: { [Op.lt]: new Date() } },
+              {
+                "$reschedule_appointment.rescheduledDate$": {
+                  [Op.lt]: new Date(),
+                },
+              },
+            ],
+          },
           { status: "cancelled" },
         ],
       },
@@ -1010,9 +1019,6 @@ async function sendPastAppointments(to) {
         {
           model: RescheduleAppointment,
           required: false,
-          where: {
-            rescheduledDate: { [Op.lt]: new Date() },
-          },
         },
       ],
       order: [["bookingDate", "DESC"]],

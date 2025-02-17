@@ -787,7 +787,7 @@ async function requestDateInput(to) {
   }
 }
 
-async function sendTimeSelection(to) {
+async function sendTimeSelection(to, bookedTimes) {
   const availableTimes = [
     "08:00",
     "09:00",

@@ -1002,7 +1002,14 @@ async function sendPastAppointments(to) {
       where: {
         phone: to,
         [Op.or]: [
-          { bookingDate: { [Op.lt]: new Date() } },
+          // Case 1: Appointments without a rescheduled date where bookingDate is in the past
+          {
+            [Op.and]: [
+              { bookingDate: { [Op.lt]: new Date() } },
+              { "$reschedule_appointment.rescheduledDate$": null },
+            ],
+          },
+          // Case 2: Appointments with a rescheduled date, where both bookingDate and rescheduledDate are in the past
           {
             [Op.and]: [
               { bookingDate: { [Op.lt]: new Date() } },
@@ -1051,7 +1058,6 @@ async function sendPastAppointments(to) {
     );
   }
 }
-
 
 async function sendCancelRescheduleOptions(to) {
   try {

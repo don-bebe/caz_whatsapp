@@ -504,9 +504,36 @@ app.post("/whatsapp/webhook", async (req, res) => {
         await sendWhatsAppMessage(sender, validation.message);
         return res.sendStatus(200);
       }
+
+      const bookedAppointments = await Appointment.findAll({
+        where: {
+          [Op.or]: [
+            {
+              [Op.and]: [
+                { bookingDate: userDate },
+                { "$reschedule_appointment.rescheduledDate$": null },
+              ],
+            },
+            {
+              [Op.and]: [
+                { bookingDate: userDate },
+                {
+                  "$reschedule_appointment.rescheduledDate$": { [Op.ne]: null },
+                },
+              ],
+            },
+          ],
+        },
+        attributes: ["bookingTime"],
+      });
+
+      const bookedTimes = bookedAppointments.map(
+        (appointment) => appointment.bookingTime
+      );
+
       userContext[sender].date = userDate;
       userContext[sender].mode = "time_selection";
-      await sendTimeSelection(sender);
+      await sendTimeSelection(sender, bookedTimes);
       return res.sendStatus(200);
     }
 
@@ -776,6 +803,27 @@ async function requestDateInput(to) {
 }
 
 async function sendTimeSelection(to) {
+  const availableTimes = [
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+  ];
+
+  const remainingTimes = availableTimes.filter(
+    (time) => !bookedTimes.includes(time)
+  );
+
+  const timeOptions = remainingTimes.map((time) => ({
+    id: `time_${time}`,
+    title: time,
+  }));
+
   const url = `https://graph.facebook.com/${process.env.WHATSAPP_CLOUD_VERSION}/${process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID}/messages`;
 
   const data = {
@@ -793,17 +841,7 @@ async function sendTimeSelection(to) {
         sections: [
           {
             title: "Available Time Slots",
-            rows: [
-              { id: "time_08:00", title: "08:00" },
-              { id: "time_9:00", title: "09:00" },
-              { id: "time_10:00", title: "10:00" },
-              { id: "time_11:00", title: "11:00" },
-              { id: "time_12:00", title: "12:00" },
-              { id: "time_13:00", title: "13:00" },
-              { id: "time_14:00", title: "14:00" },
-              { id: "time_15:00", title: "15:00" },
-              { id: "time_16:00", title: "16:00" },
-            ],
+            rows: timeOptions,
           },
         ],
       },
@@ -1013,7 +1051,11 @@ async function sendPastAppointments(to) {
           {
             [Op.and]: [
               { bookingDate: { [Op.lt]: new Date() } },
-              { "$reschedule_appointment.rescheduledDate$": { [Op.lt]: new Date() } },
+              {
+                "$reschedule_appointment.rescheduledDate$": {
+                  [Op.lt]: new Date(),
+                },
+              },
             ],
           },
           { status: "cancelled" },

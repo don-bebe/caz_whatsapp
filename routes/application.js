@@ -3,13 +3,19 @@ const {
   getAllAppointments,
   approveAppointments,
   addNewAppointment,
+  countAllAppointments,
+  countAllPendingAppointments,
+  countTodayAppointments,
 } = require("../controllers/Appointment");
-const { verifyUser } = require("../helpers/verifyUser");
+const { verifyUser, adminOnly } = require("../helpers/verifyUser");
 
 const router = express.Router();
 
-router.get("/all", verifyUser, getAllAppointments);
-router.patch("/update/:uuid", verifyUser, approveAppointments);
-router.post("/add", verifyUser, addNewAppointment);
+router.get("/all", verifyUser,getAllAppointments);
+router.get("/count", verifyUser, countAllAppointments);
+router.get("/countp", verifyUser, adminOnly,countAllPendingAppointments);
+router.get("/countt", verifyUser, countTodayAppointments);
+router.patch("/update/:uuid", verifyUser, adminOnly,approveAppointments);
+router.post("/add", verifyUser, adminOnly,addNewAppointment);
 
 module.exports = router;

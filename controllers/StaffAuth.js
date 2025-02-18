@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const db = require("../config/dbconnection");
 const StaffDetails = require("../models/StaffDetails");
+const LoginStats = require("../models/LoginStats");
 
 const signUpStaff = async (req, res) => {
   const transaction = await db.transaction();
@@ -78,15 +79,29 @@ const signInStaff = async (req, res) => {
     }
 
     req.session.userId = staff.uuid;
-    
+
     const name = staff.fullName;
     const phone = staff.phone;
+    const role = staff.role;
+
+    const ip_address =
+      req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+    const lastLogin = new Date();
+
+    await LoginStats.create(
+      {
+        staff_uuid: staff.uuid,
+        ip_address,
+        lastLogin,
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
     return res
       .status(200)
-      .json({ name, email, phone, message: `Welcome ${name}` });
+      .json({ name, email, phone, role, message: `Welcome ${name}` });
   } catch (error) {
     await transaction.rollback();
     return res
@@ -95,4 +110,38 @@ const signInStaff = async (req, res) => {
   }
 };
 
-module.exports = { signUpStaff, signInStaff };
+const allStaff = async (req, res) => {
+  try {
+    const response = await StaffDetails.findAll({
+      include: [
+        {
+          model: LoginStats,
+        },
+      ],
+    });
+
+    if (response && response.length > 0) {
+      return res.status(200).json(response);
+    } else {
+      return res.status(404).json({ message: "No appointments found" });
+    }
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+const countStaff = async(req, res)=>{
+  try {
+    const count = await StaffDetails.count();
+    return res.status(200).json(count);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+}
+
+
+module.exports = { signUpStaff, signInStaff, allStaff, countStaff };

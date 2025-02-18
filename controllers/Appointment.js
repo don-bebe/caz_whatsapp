@@ -4,6 +4,7 @@ const Appointment = require("../models/Appointment");
 const { Op } = require("sequelize");
 const AppointmentHistory = require("../models/AppointmentHistory");
 const RescheduleAppointment = require("../models/RescheduleAppointment");
+const moment = require("moment");
 
 const getAllAppointments = async (req, res) => {
   try {
@@ -148,4 +149,83 @@ const addNewAppointment = async (req, res) => {
   }
 };
 
-module.exports = { getAllAppointments, approveAppointments, addNewAppointment };
+const appointmentsTodayCalender = async (req, res) => {
+  try {
+    const startOfDay = moment().startOf("day").toDate();
+    const endOfDay = moment().endOf("day").toDate();
+    const response = await Appointment.findAll({
+      where: {
+        bookingDate: {
+          [Op.gte]: startOfDay,
+          [Op.lte]: endOfDay,
+        },
+      },
+    });
+    if (response && response.length > 0) {
+      return res.status(200).json(response);
+    } else {
+      return res.status(404).json({ message: "No appointments found" });
+    }
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+const countAllAppointments = async (req, res) => {
+  try {
+    const count = await Appointment.count();
+    return res.status(200).json(count);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+const countAllPendingAppointments = async (req, res) => {
+  try {
+    const count = await Appointment.findAndCountAll({
+      where: {
+        status: "pending",
+      },
+    });
+    return res.status(200).json(count);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+const countTodayAppointments = async (req, res) => {
+  try {
+    const startOfDay = moment().startOf("day").toDate();
+    const endOfDay = moment().endOf("day").toDate();
+
+    const count = await Appointment.findAndCountAll({
+      where: {
+        bookingDate: {
+          [Op.gte]: startOfDay,
+          [Op.lte]: endOfDay,
+        },
+      },
+    });
+
+    return res.status(200).json(count);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+module.exports = {
+  getAllAppointments,
+  approveAppointments,
+  addNewAppointment,
+  countAllAppointments,
+  countAllPendingAppointments,
+  countTodayAppointments,
+};

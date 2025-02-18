@@ -33,6 +33,11 @@ const StaffDetails = db.define(
         is: /^[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/i, // Regex to validate local and international numbers
       },
     },
+    role:{
+      type: DataTypes.ENUM("admin", "user"),
+      allowNull: false,
+      defaultValue: "user",
+    },
     password: {
       type: DataTypes.STRING,
       allowNull: false,

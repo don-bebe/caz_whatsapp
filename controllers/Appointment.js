@@ -186,7 +186,7 @@ const countAllAppointments = async (req, res) => {
 
 const countAllPendingAppointments = async (req, res) => {
   try {
-    const count = await Appointment.findAndCountAll({
+    const count = await Appointment.count({
       where: {
         status: "pending",
       },
@@ -204,7 +204,7 @@ const countTodayAppointments = async (req, res) => {
     const startOfDay = moment().startOf("day").toDate();
     const endOfDay = moment().endOf("day").toDate();
 
-    const count = await Appointment.findAndCountAll({
+    const count = await Appointment.count({
       where: {
         bookingDate: {
           [Op.gte]: startOfDay,
@@ -228,4 +228,5 @@ module.exports = {
   countAllAppointments,
   countAllPendingAppointments,
   countTodayAppointments,
+  appointmentsTodayCalender,
 };

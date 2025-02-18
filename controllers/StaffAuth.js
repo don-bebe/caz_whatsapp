@@ -6,7 +6,7 @@ const LoginStats = require("../models/LoginStats");
 const signUpStaff = async (req, res) => {
   const transaction = await db.transaction();
   try {
-    const { fullName, phone, email, password, confirmPassword } = req.body;
+    const { fullName, phone, email, password, confirmPassword, role } = req.body;
     const response = await StaffDetails.findOne({
       where: {
         email,
@@ -38,6 +38,7 @@ const signUpStaff = async (req, res) => {
         fullName,
         email,
         phone,
+        role,
         password: hashedPassword,
       },
       { transaction }

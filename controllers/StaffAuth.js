@@ -6,8 +6,7 @@ const LoginStats = require("../models/LoginStats");
 const signUpStaff = async (req, res) => {
   const transaction = await db.transaction();
   try {
-    const { fullName, phone, email, password, confirmPassword, role } =
-      req.body;
+    const { fullName, phone, email, password, confirmPassword, role } = req.body;
     const response = await StaffDetails.findOne({
       where: {
         email,
@@ -114,7 +113,14 @@ const signInStaff = async (req, res) => {
 
 const allStaff = async (req, res) => {
   try {
-    const response = await StaffDetails.findAll();
+    const response = await StaffDetails.findAll({
+      include: [
+        {
+          model: LoginStats,
+          required: false
+        },
+      ],
+    });
 
     if (response && response.length > 0) {
       return res.status(200).json(response);
@@ -128,7 +134,7 @@ const allStaff = async (req, res) => {
   }
 };
 
-const countStaff = async (req, res) => {
+const countStaff = async(req, res)=>{
   try {
     const count = await StaffDetails.count();
     return res.status(200).json(count);
@@ -137,6 +143,7 @@ const countStaff = async (req, res) => {
       .status(500)
       .json({ message: "Internal server error: " + error.message });
   }
-};
+}
+
 
 module.exports = { signUpStaff, signInStaff, allStaff, countStaff };

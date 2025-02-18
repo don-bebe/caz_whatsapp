@@ -35,7 +35,7 @@ const LoginStats = db.define(
   { freezeTableName: true, timestamps: true }
 );
 
-StaffDetails.hasOne(LoginStats, {
+StaffDetails.hasMany(LoginStats, {
   foreignKey: "staff_uuid",
   constraints: false,
 });

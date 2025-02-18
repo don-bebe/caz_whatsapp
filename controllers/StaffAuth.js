@@ -117,6 +117,7 @@ const allStaff = async (req, res) => {
       include: [
         {
           model: LoginStats,
+          required: false
         },
       ],
     });

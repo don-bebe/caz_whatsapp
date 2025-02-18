@@ -120,6 +120,7 @@ const allStaff = async (req, res) => {
           required: false
         },
       ],
+      distinct: true,
     });
 
     if (response && response.length > 0) {

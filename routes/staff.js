@@ -9,7 +9,7 @@ const { verifyUser, adminOnly } = require("../helpers/verifyUser");
 
 const router = express.Router();
 
-router.post("/signup", signUpStaff);
+router.post("/signup", verifyUser, adminOnly, signUpStaff);
 router.post("/signin", signInStaff);
 router.get("/all", verifyUser, adminOnly, allStaff);
 router.get("/count", verifyUser, adminOnly, countStaff);

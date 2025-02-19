@@ -8,6 +8,7 @@ const {
   countTodayAppointments,
   appointmentsTodayCalender,
   getBookedTimeSlots,
+  appointmentsThisWeekCalendar,
 } = require("../controllers/Appointment");
 const { verifyUser, adminOnly } = require("../helpers/verifyUser");
 
@@ -17,6 +18,7 @@ router.get("/all", verifyUser, getAllAppointments);
 router.get("/time/:bookingDate", verifyUser, adminOnly, getBookedTimeSlots);
 router.get("/count", verifyUser, countAllAppointments);
 router.get("today", verifyUser, appointmentsTodayCalender);
+router.get("/week", verifyUser, appointmentsThisWeekCalendar);
 router.get("/countp", verifyUser, adminOnly, countAllPendingAppointments);
 router.get("/countt", verifyUser, countTodayAppointments);
 router.patch("/update/:uuid", verifyUser, adminOnly, approveAppointments);

@@ -187,6 +187,32 @@ const appointmentsTodayCalender = async (req, res) => {
   }
 };
 
+const appointmentsThisWeekCalendar = async (req, res) => {
+  try {
+    const startOfWeek = moment().startOf("week").toDate();
+    const endOfWeek = moment().endOf("week").toDate();
+    
+    const response = await Appointment.findAll({
+      where: {
+        bookingDate: {
+          [Op.gte]: startOfWeek,
+          [Op.lte]: endOfWeek,
+        },
+      },
+    });
+    
+    if (response && response.length > 0) {
+      return res.status(200).json(response);
+    } else {
+      return res.status(404).json({ message: "No appointments found for this week" });
+    }
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
 const countAllAppointments = async (req, res) => {
   try {
     const count = await Appointment.count();
@@ -269,4 +295,5 @@ module.exports = {
   countTodayAppointments,
   appointmentsTodayCalender,
   getBookedTimeSlots,
+  appointmentsThisWeekCalendar
 };

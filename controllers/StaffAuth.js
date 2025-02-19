@@ -9,6 +9,7 @@ const signUpStaff = async (req, res) => {
   try {
     const { fullName, phone, email, password, confirmPassword, role } =
       req.body;
+      
     const response = await StaffDetails.findOne({
       where: {
         email,

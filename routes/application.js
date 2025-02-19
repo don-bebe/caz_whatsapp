@@ -14,7 +14,7 @@ const { verifyUser, adminOnly } = require("../helpers/verifyUser");
 const router = express.Router();
 
 router.get("/all", verifyUser, getAllAppointments);
-router.get("/time", verifyUser, adminOnly, getBookedTimeSlots);
+router.get("/time/:bookingDate", verifyUser, adminOnly, getBookedTimeSlots);
 router.get("/count", verifyUser, countAllAppointments);
 router.get("today", verifyUser, appointmentsTodayCalender);
 router.get("/countp", verifyUser, adminOnly, countAllPendingAppointments);

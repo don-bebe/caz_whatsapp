@@ -223,7 +223,7 @@ const countTodayAppointments = async (req, res) => {
 
 const getBookedTimeSlots = async(req, res)=>{
   try {
-    const { bookingDate } = req.query;
+    const { bookingDate } = req.params;
 
     if (!bookingDate) {
       return res.status(400).json({ message: "bookingDate is required" });

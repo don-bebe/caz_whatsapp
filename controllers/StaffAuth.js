@@ -2,11 +2,13 @@ const bcrypt = require("bcrypt");
 const db = require("../config/dbconnection");
 const StaffDetails = require("../models/StaffDetails");
 const LoginStats = require("../models/LoginStats");
+const { Op } = require("sequelize");
 
 const signUpStaff = async (req, res) => {
   const transaction = await db.transaction();
   try {
-    const { fullName, phone, email, password, confirmPassword, role } = req.body;
+    const { fullName, phone, email, password, confirmPassword, role } =
+      req.body;
     const response = await StaffDetails.findOne({
       where: {
         email,
@@ -89,14 +91,24 @@ const signInStaff = async (req, res) => {
       req.headers["x-forwarded-for"] || req.connection.remoteAddress;
     const lastLogin = new Date();
 
-    await LoginStats.create(
-      {
+    const today = new Date().toISOString().split("T")[0];
+
+    const existingLogin = await LoginStats.findOne({
+      where: {
         staff_uuid: staff.uuid,
-        ip_address,
-        lastLogin,
+        lastLogin: { [Op.gte]: today },
       },
-      { transaction }
-    );
+      transaction,
+    });
+
+    if (existingLogin) {
+      await existingLogin.update({ ip_address, lastLogin }, { transaction });
+    } else {
+      await LoginStats.create(
+        { staff_uuid: staff.uuid, ip_address, lastLogin },
+        { transaction }
+      );
+    }
 
     await transaction.commit();
 
@@ -117,7 +129,9 @@ const allStaff = async (req, res) => {
       include: [
         {
           model: LoginStats,
-          required: false
+          required: false,
+          order: [["lastLogin", "DESC"]],
+          limit: 1,
         },
       ],
     });
@@ -134,7 +148,7 @@ const allStaff = async (req, res) => {
   }
 };
 
-const countStaff = async(req, res)=>{
+const countStaff = async (req, res) => {
   try {
     const count = await StaffDetails.count();
     return res.status(200).json(count);
@@ -143,7 +157,6 @@ const countStaff = async(req, res)=>{
       .status(500)
       .json({ message: "Internal server error: " + error.message });
   }
-}
-
+};
 
 module.exports = { signUpStaff, signInStaff, allStaff, countStaff };

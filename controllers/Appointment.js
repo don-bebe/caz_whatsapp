@@ -73,6 +73,13 @@ const approveAppointments = async (req, res) => {
       );
     }
 
+    if (req.body.status === "cancelled") {
+      await sendWhatsAppMessage(
+        appointment.phone,
+        `Your appointment have been cancelled: ${req.body.message}`
+      );
+    }
+
     await appointment.save({ transaction });
     await transaction.commit();
 
@@ -89,7 +96,8 @@ const approveAppointments = async (req, res) => {
 const addNewAppointment = async (req, res) => {
   const transaction = await db.transaction();
   try {
-    const { fullName, bookingDate, bookingTime, phone, service } = req.body;
+    const { fullName, bookingDate, bookingTime, phone, service, status } =
+      req.body;
     const appointment = await Appointment.findOne({
       where: {
         phone,
@@ -132,11 +140,17 @@ const addNewAppointment = async (req, res) => {
         bookingDate: bookingDate,
         bookingTime: bookingTime,
         phone: phone,
+        status: status,
       },
       { transaction }
     );
 
     await transaction.commit();
+
+    await sendWhatsAppMessage(
+      phone,
+      `An ${service} appointment has been scheduled on ${bookingDate} at ${bookingTime}. We hope to see you`
+    );
 
     return res
       .status(200)
@@ -221,7 +235,7 @@ const countTodayAppointments = async (req, res) => {
   }
 };
 
-const getBookedTimeSlots = async(req, res)=>{
+const getBookedTimeSlots = async (req, res) => {
   try {
     const { bookingDate } = req.params;
 
@@ -234,7 +248,9 @@ const getBookedTimeSlots = async(req, res)=>{
       attributes: ["bookingTime"],
     });
 
-    const bookedTimeSlots = bookedAppointments.map(appointment => appointment.bookingTime);
+    const bookedTimeSlots = bookedAppointments.map(
+      (appointment) => appointment.bookingTime
+    );
 
     return res.status(200).json({ bookedSlots: bookedTimeSlots });
   } catch (error) {
@@ -242,7 +258,7 @@ const getBookedTimeSlots = async(req, res)=>{
       .status(500)
       .json({ message: "Internal server error: " + error.message });
   }
-}
+};
 
 module.exports = {
   getAllAppointments,

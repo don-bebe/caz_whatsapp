@@ -158,4 +158,39 @@ const countStaff = async (req, res) => {
   }
 };
 
-module.exports = { signUpStaff, signInStaff, allStaff, countStaff };
+const updateUser = async (req, res) => {
+  const transaction = await db.transaction();
+  try {
+    const updates = req.body;
+    const staff = await StaffDetails.findByPk(req.params.uuid, { transaction });
+
+    if (!staff) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    for (const field in updates) {
+      if (
+        Object.prototype.hasOwnProperty.call(updates, field) &&
+        updates[field] !== staff[field]
+      ) {
+        staff[field] = updates[field];
+      }
+    }
+
+    await staff.save({ transaction });
+    await transaction.commit();
+
+    return res
+      .status(200)
+      .json({ message: "User details updated successfully!" });
+
+  } catch (error) {
+    await transaction.rollback();
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+module.exports = { signUpStaff, signInStaff, allStaff, countStaff, updateUser };

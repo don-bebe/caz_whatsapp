@@ -118,7 +118,7 @@ const addNewAppointment = async (req, res) => {
 
     const todayAppointment = await Appointment.findOne({
       where: {
-        phone: sender,
+        phone: phone,
         createdAt: {
           [Op.gte]: today,
         },

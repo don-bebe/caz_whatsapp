@@ -131,8 +131,6 @@ const allStaff = async (req, res) => {
           model: LoginStats,
           required: false,
           order: [["lastLogin", "DESC"]],
-          limit: 1,
-          separate: true,
         },
       ],
     });

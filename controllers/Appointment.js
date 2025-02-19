@@ -221,6 +221,29 @@ const countTodayAppointments = async (req, res) => {
   }
 };
 
+const getBookedTimeSlots = async(req, res)=>{
+  try {
+    const { bookingDate } = req.query;
+
+    if (!bookingDate) {
+      return res.status(400).json({ message: "bookingDate is required" });
+    }
+
+    const bookedAppointments = await Appointment.findAll({
+      where: { bookingDate },
+      attributes: ["bookingTime"],
+    });
+
+    const bookedTimeSlots = bookedAppointments.map(appointment => appointment.bookingTime);
+
+    return res.status(200).json({ bookedSlots: bookedTimeSlots });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+}
+
 module.exports = {
   getAllAppointments,
   approveAppointments,
@@ -229,4 +252,5 @@ module.exports = {
   countAllPendingAppointments,
   countTodayAppointments,
   appointmentsTodayCalender,
+  getBookedTimeSlots,
 };

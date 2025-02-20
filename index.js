@@ -53,6 +53,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '/public', 'index.html'));
+});
+
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

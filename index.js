@@ -53,13 +53,16 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '/public', 'index.html'));
-});
 
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const CREDENTIALS_PATH = path.join(__dirname, "dialogflow-credentials.json");
 const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));

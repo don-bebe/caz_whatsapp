@@ -58,11 +58,9 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use("/api/appoint", AppointRouter);
+app.use("/api/staff", StaffRouter);
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 const CREDENTIALS_PATH = path.join(__dirname, "dialogflow-credentials.json");
 const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
@@ -1295,8 +1293,11 @@ async function reschedulingReason(to) {
   }
 }
 
-app.use("/api/appoint", AppointRouter);
-app.use("/api/staff", StaffRouter);
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

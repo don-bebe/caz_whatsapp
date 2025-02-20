@@ -303,7 +303,7 @@ const countWeeklyAppointments = async (req, res) => {
     const response = await Appointment.findAll({
       attributes: [
         [fn("YEARWEEK", col("bookingDate"), 1), "week"],
-        [fn("COUNT", col("id")), "count"],
+        [fn("COUNT", col("uuid")), "count"],
       ],
       where: {
         status: "approved",

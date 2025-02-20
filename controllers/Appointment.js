@@ -1,7 +1,7 @@
 const db = require("../config/dbconnection");
 const { sendWhatsAppMessage } = require("../helpers/WhatsAppMessages");
 const Appointment = require("../models/Appointment");
-const { Op } = require("sequelize");
+const { Op, fn, col } = require("sequelize");
 const AppointmentHistory = require("../models/AppointmentHistory");
 const RescheduleAppointment = require("../models/RescheduleAppointment");
 const moment = require("moment");
@@ -284,6 +284,42 @@ const getBookedTimeSlots = async (req, res) => {
   }
 };
 
+const countMostBookedServices = async (req, res) => {
+  try {
+    const response = await Appointment.findAll({
+      attributes: ["service", [fn("COUNT", col("service")), "count"]],
+      group: ["service"],
+    });
+    return res.status(200).json(response);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
+const countWeeklyAppointments = async (req, res) => {
+  try {
+    const response = await Appointment.findAll({
+      attributes: [
+        [fn("YEARWEEK", col("bookingDate"), 1), "week"],
+        [fn("COUNT", col("id")), "count"],
+      ],
+      where: {
+        status: "approved",
+      },
+      group: ["week"],
+      order: [["week", "ASC"]],
+    });
+
+    return res.status(200).json(response);
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Internal server error: " + error.message });
+  }
+};
+
 module.exports = {
   getAllAppointments,
   approveAppointments,
@@ -294,4 +330,6 @@ module.exports = {
   appointmentsTodayCalender,
   getBookedTimeSlots,
   appointmentsThisWeekCalendar,
+  countMostBookedServices,
+  countWeeklyAppointments,
 };

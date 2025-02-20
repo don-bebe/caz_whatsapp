@@ -191,7 +191,7 @@ const appointmentsThisWeekCalendar = async (req, res) => {
   try {
     const startOfWeek = moment().startOf("week").toDate();
     const endOfWeek = moment().endOf("week").toDate();
-    
+
     const response = await Appointment.findAll({
       where: {
         bookingDate: {
@@ -200,11 +200,13 @@ const appointmentsThisWeekCalendar = async (req, res) => {
         },
       },
     });
-    
+
     if (response && response.length > 0) {
       return res.status(200).json(response);
     } else {
-      return res.status(404).json({ message: "No appointments found for this week" });
+      return res
+        .status(404)
+        .json({ message: "No appointments found for this week" });
     }
   } catch (error) {
     return res
@@ -241,15 +243,11 @@ const countAllPendingAppointments = async (req, res) => {
 
 const countTodayAppointments = async (req, res) => {
   try {
-    const startOfDay = moment().startOf("day").toDate();
-    const endOfDay = moment().endOf("day").toDate();
+    const today = moment().format("YYYY-MM-DD"); // Get today's date
 
     const count = await Appointment.count({
       where: {
-        bookingDate: {
-          [Op.gte]: startOfDay,
-          [Op.lte]: endOfDay,
-        },
+        bookingDate: today,
       },
     });
 
@@ -295,5 +293,5 @@ module.exports = {
   countTodayAppointments,
   appointmentsTodayCalender,
   getBookedTimeSlots,
-  appointmentsThisWeekCalendar
+  appointmentsThisWeekCalendar,
 };

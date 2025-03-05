@@ -14,6 +14,7 @@ const getAllAppointments = async (req, res) => {
           model: RescheduleAppointment,
         },
       ],
+      order: [['createdAt', 'DESC']],
     });
 
     if (response && response.length > 0) {
